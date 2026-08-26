@@ -1,11 +1,17 @@
 """Watch every Claude agent in a herdr session and answer its Approval Prompts.
 
-Discovery is polled, because herdr has no "an agent appeared" event. Acceptance
-is event-driven: each agent gets a thread parked in a blocking
-`herdr agent wait --until blocked`, so a Prompt is answered on the state
-transition rather than found by scanning. That edge trigger is also why there
-is no prompt hash and no cooldown -- a redraw of an already-Blocked prompt
-does not produce a second transition.
+Discovery is polled, because herdr has no "an agent appeared" event. Each agent
+then gets a thread parked in a blocking `herdr agent wait --until blocked`.
+
+That wait is *level*-triggered, not edge-triggered: an unanswered Prompt keeps
+reporting Blocked, so each watcher also carries the signature of the Prompt it
+last handled and does nothing while that Prompt is still on screen.
+
+Three outcomes, and the difference between them is the point of the tool:
+
+    ACCEPT  a menu offering a "Yes"  -> press Enter, in any pane
+    PAUSE   a real decision, no Yes  -> leave it, and say so loudly
+    IGNORE  not a menu at all        -> say nothing, record nothing
 """
 
 from __future__ import annotations
@@ -32,8 +38,8 @@ CLAUDE = "claude"
 #: entry in `_watchers` is not re-spawned. Keep it short.
 BLOCK_WAIT_MS = 15_000
 
-#: How long to wait for an answered Prompt to clear. On a Skip this expires
-#: repeatedly while the Prompt waits for the user, which is intended.
+#: How long to wait for an answered Prompt to clear. On a Pause this
+#: expires repeatedly while the Prompt waits for the user, as intended.
 SETTLE_WAIT_MS = 30_000
 
 #: Seconds between `herdr agent list` polls for appearing/leaving agents.
@@ -53,6 +59,29 @@ def selectable_targets(
         for agent in agents
         if agent.kind == CLAUDE and agent.pane_id != self_pane
     }
+
+
+def pending_decisions(client, self_pane: str | None = None) -> list[tuple]:
+    """Every agent sitting on a decision that needs the human, right now.
+
+    Answers "which of my panes are waiting on me?" by looking at live state
+    rather than at history, so it is correct even if the daemon is not
+    running. Returns (Agent, Decision, options) newest state first.
+    """
+    waiting = []
+    for agent in client.list_agents():
+        if agent.kind != CLAUDE or agent.pane_id == self_pane:
+            continue
+        if agent.status != "blocked":
+            continue
+        try:
+            snapshot = client.read_detection(agent.pane_id)
+        except HerdrError:
+            continue
+        decision = classify(snapshot)
+        if decision.action is Action.PAUSE:
+            waiting.append((agent, decision, parse_options(snapshot)))
+    return waiting
 
 
 def watch_cycle(
@@ -86,20 +115,26 @@ def watch_cycle(
 
     decision = classify(snapshot)
 
+    if decision.action is Action.IGNORE:
+        # Not a menu, so there is no decision here to make or to record.
+        # herdr's fallback rule fires on ordinary transcripts; recording those
+        # would bury the Pauses that actually need the human.
+        log.debug("%s ignored (%s)", target, decision.reason)
+        return None, _remember(client, target, signature)
+
     if decision.action is Action.ACCEPT and not dry_run:
         client.send_enter(target)
 
-    # The whole menu is recorded, not just the Option that was chosen: a Skip
-    # is only readable after the fact if you can see what it declined.
+    # The whole menu is recorded, not just the Option that was chosen: a Pause
+    # is only readable after the fact if you can see what was on offer.
     journal.record(
         target, decision, signature=signature, options=parse_options(snapshot)
     )
-    log.info(
-        "%s %-6s %s",
-        target,
-        decision.action.name,
-        decision.label if decision.label is not None else f"({decision.reason})",
-    )
+
+    if decision.action is Action.PAUSE:
+        log.warning("%s NEEDS YOU — %s", target, decision.label)
+    else:
+        log.info("%s %-6s %s", target, decision.action.name, decision.label)
 
     return decision, _remember(client, target, signature)
 

@@ -1,11 +1,11 @@
-"""Append-only record of every Acceptance and Skip, kept in SQLite.
+"""Append-only record of every Acceptance and Pause, kept in SQLite.
 
 The daemon presses buttons in panes nobody is looking at, and it accepts every
 Affirmative Option including consequential ones, so this database is the only
 way to answer "what did it approve, and when?".
 
 Every Option the Prompt offered is stored alongside the one that was chosen, so
-a Skip can be read back as "here is what it declined to press", not just as an
+a Pause can be read back as "here is what it is waiting on", not just as an
 absence. Rows imported from the plain-text log that preceded this database
 carry only the four fields that log held; their `source` is `legacy-log`.
 """
@@ -65,7 +65,9 @@ _INSERT = f"INSERT INTO decisions ({_WRITTEN}) VALUES (?,?,?,?,?,?,?,?)"
 _LEGACY_LINE = re.compile(
     r"^(?P<at>\d{2}/\d{2}/\d{4} \d{2}:\d{2}:\d{2})\s+"
     r"(?P<target>\S+)\s+"
-    r"(?P<outcome>ACCEPT|SKIP)\s+"
+    # SKIP is the outcome name the plain-text log used before Pause and
+    # Ignore were told apart. Historical rows keep it.
+    r"(?P<outcome>ACCEPT|SKIP|PAUSE)\s+"
     r"(?P<label>.*)$"
 )
 

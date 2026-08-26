@@ -9,7 +9,12 @@ import pathlib
 import sys
 
 from . import herdr
-from .daemon import Supervisor, selectable_targets, watch_cycle
+from .daemon import (
+    Supervisor,
+    pending_decisions,
+    selectable_targets,
+    watch_cycle,
+)
 from .herdr import HerdrError
 from .journal import DEFAULT_PATH, Journal
 
@@ -41,6 +46,10 @@ def build_parser() -> argparse.ArgumentParser:
         help="list the agents that would be watched, then exit",
     )
     parser.add_argument(
+        "--waiting", "-w", action="store_true",
+        help="show the decisions currently waiting for you, then exit",
+    )
+    parser.add_argument(
         "--once", metavar="TARGET",
         help="run a single watch cycle against one agent, then exit",
     )
@@ -67,6 +76,22 @@ def main(argv: list[str] | None = None) -> int:
 
     self_pane = _self_pane()
     targets = selectable_targets(agents, self_pane)
+
+    if args.waiting:
+        waiting = pending_decisions(herdr, self_pane)
+        if not waiting:
+            print("nothing waiting on you.")
+            return 0
+        for agent, decision, options in waiting:
+            print(f"\n{agent.pane_id}  {agent.title}")
+            for option in options:
+                mark = "❯" if option.selected else " "
+                number = f"{option.number}. " if option.number else ""
+                print(f"    {mark} {number}{option.label}")
+            print(f"    → {decision.reason}")
+        print(f"\n{len(waiting)} decision(s) waiting. "
+              f"Answer them in the pane, or `herdr agent focus <pane>`.")
+        return 0
 
     if args.status:
         for agent in agents:

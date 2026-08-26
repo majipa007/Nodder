@@ -1,4 +1,4 @@
-"""Classify a Blocked agent's screen into an Acceptance or a Skip.
+"""Sort a Blocked agent's screen into Accept, Pause, or Ignore.
 
 This module is the Claude-specific seam described in spec section 3. Herdr
 tells us an agent is Blocked but not *what kind* of Prompt is showing, so the
@@ -49,10 +49,24 @@ _AFFORDANCE = re.compile(
     re.IGNORECASE,
 )
 
+# The affordance has to sit just under the menu, not merely somewhere on
+# screen. A transcript that happens to discuss prompts -- this project's own
+# session being the obvious case -- contains those words as ordinary prose,
+# which is enough to wave a typed message through if the check is not anchored.
+_AFFORDANCE_WINDOW = 6
+
 
 class Action(enum.Enum):
+    #: A menu offering a "Yes". Press Enter.
     ACCEPT = "accept"
-    SKIP = "skip"
+    #: A real decision with no "Yes" on offer. Leave it up and wait for the
+    #: human -- this is the outcome that needs surfacing, not burying.
+    PAUSE = "pause"
+    #: Not a menu at all. herdr's fallback rule calls a pane blocked when the
+    #: words "do you want to" and a "❯" appear anywhere in its buffer, so this
+    #: fires on ordinary transcripts. There is nothing to decide, and nothing
+    #: worth recording.
+    IGNORE = "ignore"
 
 
 @dataclass(frozen=True)
@@ -92,17 +106,23 @@ def parse_options(snapshot: str) -> list[Option]:
     Returns an empty list when the snapshot holds no menu, which includes the
     common case of an agent Blocked on something that is not a menu at all.
     """
-    if not _AFFORDANCE.search(snapshot):
-        return []
     lines = snapshot.splitlines()
     blocks = [
         block
         for block in (_numbered_block(lines), _unnumbered_block(lines))
-        if block and len(block.options) >= _MINIMUM_OPTIONS
+        if block
+        and len(block.options) >= _MINIMUM_OPTIONS
+        and _affordance_below(lines, block.bottom)
     ]
     if not blocks:
         return []
     return max(blocks, key=lambda block: block.bottom).options
+
+
+def _affordance_below(lines: list[str], bottom: int) -> bool:
+    """Whether Claude Code's menu footer follows the block at `bottom`."""
+    window = lines[bottom + 1:bottom + 1 + _AFFORDANCE_WINDOW]
+    return any(_AFFORDANCE.search(line) for line in window)
 
 
 def _numbered_block(lines: list[str]) -> _Block | None:
@@ -208,15 +228,30 @@ def prompt_signature(snapshot: str) -> str | None:
 
 
 def classify(snapshot: str) -> Decision:
-    """Decide whether a Blocked agent's Prompt should be accepted.
+    """Sort a Blocked agent's screen into Accept, Pause, or Ignore.
 
-    Every Affirmative Option is accepted, whatever follows the word "Yes" --
-    including Options that spend money, grant trust, or change settings
-    permanently. See spec section 6; this is deliberate.
+    A menu that offers a "Yes" is a permission prompt: accept it, whatever
+    follows the word -- including Options that spend money, grant trust, or
+    change settings permanently. See spec section 6; this is deliberate.
+
+    A menu that offers no "Yes" is a real decision -- which indentation style,
+    which migration strategy -- and belongs to the human. Pause on it.
     """
+    options = parse_options(snapshot)
+    if not options:
+        return Decision(Action.IGNORE, None, "no menu on screen")
+
     label = selected_option(snapshot)
     if label is None:
-        return Decision(Action.SKIP, None, "no option list found")
+        return Decision(Action.IGNORE, None, "menu with nothing selected")
+
     if is_affirmative(label):
-        return Decision(Action.ACCEPT, label, "selected option is affirmative")
-    return Decision(Action.SKIP, label, "selected option is not affirmative")
+        return Decision(Action.ACCEPT, label, "a yes was offered and selected")
+
+    if any(is_affirmative(option.label) for option in options):
+        # A permission prompt whose cursor is not on the Yes. Rare -- Claude
+        # Code pre-selects the first Option -- and pressing Enter would answer
+        # the wrong thing, so hand it over rather than guess.
+        return Decision(Action.PAUSE, label, "a yes was offered but not selected")
+
+    return Decision(Action.PAUSE, label, "a decision with no yes on offer")

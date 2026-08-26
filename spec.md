@@ -68,12 +68,12 @@ every ~2s                   │
                     `herdr agent read <a> --source detection`
                             │
                             ▼
-                 Selected Option starts with "Yes"?
+                 Is a "Yes" offered and selected?
                     │                      │
                    yes                     no
                     │                      │
                     ▼                      ▼
-        `herdr agent send-keys      Skip — leave it for
+        `herdr agent send-keys      Pause — leave it up for
               <a> enter`            the user; Herdr already
                     │               notifies on blocked
                     └──────────┬───────────┘
@@ -109,8 +109,9 @@ Herdr performs detection. This tool performs **classification**.
 1. Read the detection snapshot.
 2. Extract the **Selected Option** — the entry marked with `❯` (`❯`), or
    failing that, option `1.`, which Claude Code always pre-selects.
-3. If its label begins with `Yes` → **Acceptance**.
-4. Otherwise → **Skip**.
+3. If no menu is on screen → **Ignore**.
+4. If its label begins with `Yes` → **Acceptance**.
+5. Otherwise → **Pause**.
 
 ### Decision: any Affirmative Option is accepted
 
@@ -132,18 +133,28 @@ This is a deliberate choice, not an oversight. An allowlist of specific labels
 was considered and rejected in favour of the simpler rule. **The log (§8) is
 therefore the only record of what was pressed.**
 
-### Question Prompts are usually, but not always, Skipped
+### Question Prompts are Paused, not Skipped
 
-A Question Prompt is Skipped whenever its Selected Option does not begin with
-"Yes", which covers the ordinary case. It is **not** a guarantee: the options in
-Claude Code's multiple-choice questions are written by the model, so a question
-like *"Should I drop the legacy table?"* can render `❯ 1. Yes, drop it` and will
-be accepted. The rule is "the Selected Option begins with Yes", not "this is an
-Approval Prompt", and those differ.
+An earlier draft treated "not a Yes" and "not a menu" as one outcome called
+Skip. That was wrong twice over: it read as though the Prompt had been thrown
+away, and it buried real decisions under Herdr's fallback-rule noise.
 
-Narrowing this would mean requiring an Approval Prompt marker such as the
-`Do you want to proceed?` header. That was considered and rejected in favour of
-the simpler rule.
+There are three outcomes:
+
+| Outcome | When | What happens |
+|---|---|---|
+| **Accept** | The menu offers a "Yes" and it is selected | Enter is pressed, in any Pane |
+| **Pause** | A real decision — no "Yes" on offer, or a "Yes" that is not selected | Nothing is sent; the Prompt stays up and is reported loudly |
+| **Ignore** | No menu on screen at all | Nothing sent, nothing recorded |
+
+A Pause is a hand-back. The Prompt is untouched, the Agent stays `blocked`,
+Herdr's own notification still fires, and `nodder --waiting` lists every Pane
+currently holding one.
+
+Ignore exists because Herdr's `legacy_no_prompt_blocker` rule reports `blocked`
+whenever the words "do you want to" and a `❯` appear anywhere in a Pane's
+buffer. That fires constantly on ordinary transcripts. Recording those would
+make the record useless for its one job — showing what needs the human.
 
 ---
 
@@ -206,7 +217,7 @@ Format:
 
 ```text
 26/08/2026 14:32:07  w1:p2  ACCEPT  "Yes, run it"
-26/08/2026 14:35:51  w1:p1  SKIP    "Add a test"
+26/08/2026 14:35:51  w1:p1  PAUSE   "Add a test"
 ```
 
 Fields: timestamp (DD/MM/YYYY HH:MM:SS, local time), Agent target, outcome,
@@ -264,7 +275,7 @@ With the daemon running and seven Claude Agents across a Herdr session:
 * Question Prompts whose Selected Option is not a "Yes" are left untouched, and
   Herdr's existing notification tells the user one is waiting.
 * Each Prompt produces exactly one log line however long it stays on screen.
-* Every Acceptance and Skip appears in the log.
+* Every Acceptance and Pause appears in the record; Ignores do not.
 * Killing the daemon returns every Pane to normal interactive behaviour with no
   residual state.
 

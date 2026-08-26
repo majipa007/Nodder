@@ -1,7 +1,7 @@
 # nodder
 
-**Nods yes to your coding agents' approval prompts — in every pane, including
-the ones you aren't looking at.**
+**Nods yes to your coding agents' permission prompts — in every pane,
+including the ones you aren't looking at. Pauses on the real decisions.**
 
 You run several Claude Code sessions across a [herdr](https://herdr.dev)
 workspace. Each one stops and waits for you to press Enter on
@@ -17,7 +17,7 @@ $ nodder --verbose
 [auto-accept] watching w2:p4
 [auto-accept] w2:p4 ACCEPT Yes
 [auto-accept] w1:p3 ACCEPT Yes, run it
-[auto-accept] w2:p1 SKIP   Roll back on failure
+[auto-accept] w2:p1 NEEDS YOU — Roll back on failure
 ```
 
 ---
@@ -80,18 +80,20 @@ you agree with them, drop the flag.
 | `--dry-run` | Classify and record, never send Enter |
 | `--verbose`, `-v` | Log every decision to stderr |
 | `--status` | List agents and whether each is watched, then exit |
+| `--waiting`, `-w` | Show the decisions currently waiting for you, then exit |
 | `--once TARGET` | One watch cycle against one agent, then exit |
 | `--log PATH` | Use a different database |
 
 ---
 
-## What it accepts
+## What it does with a prompt
 
-Enter is pressed whenever the **selected option begins with "Yes"**.
+Three outcomes, and the split between them is the whole point of the tool.
 
-That rule is deliberately broad, and it is not the same as *"this is a
-permission prompt"*. Claude Code has 30+ options that begin with "Yes", and
-`nodder` accepts all of them:
+### A menu offering a "Yes" → **accepted**, in every pane
+
+Focused or not, watched or not. That rule is deliberately broad: Claude Code has
+30+ options beginning with "Yes" and nodder takes all of them.
 
 ```
 Yes, buy usage credits                            → spends money
@@ -103,13 +105,41 @@ Yes, set auto mode as my default permission mode  → rewrites settings.json
 Yes, and don't ask again for <x>                  → writes to permissions.allow
 ```
 
-Multiple-choice questions are usually left alone, because their options rarely
-start with "Yes" — but the options are written by the model, so a question
-rendering `❯ 1. Yes, drop it` **will** be answered. herdr's own notification
-still tells you when an agent is waiting.
+### A real decision → **paused**, in every pane
 
-If that is more than you want, narrow `is_affirmative()` in
-[`nodder/prompts.py`](./nodder/prompts.py); it is one regex.
+If no "Yes" is on offer, it isn't a permission prompt — it's a choice that is
+yours to make:
+
+```
+Which indentation style?
+ ❯ 1. Spaces
+   2. Tabs
+```
+
+nodder sends nothing. The prompt stays exactly where it is and waits for you.
+A pause is a hand-back, not a refusal. It's also paused when a "Yes" exists but
+the cursor is sitting on something else, because pressing Enter there would
+answer the wrong thing.
+
+See everything currently waiting on you:
+
+```bash
+$ nodder --waiting
+
+w2:p4  refactor the auth module
+     ❯ 1. Spaces
+       2. Tabs
+     → a decision with no yes on offer
+
+1 decision(s) waiting.
+```
+
+### Not a menu → **ignored**, and not recorded
+
+herdr reports a pane `blocked` whenever the words "do you want to" and a `❯`
+appear anywhere in its buffer, so it fires on ordinary transcripts. There is
+nothing to decide, so nodder says nothing and records nothing — otherwise the
+noise buries the pauses that actually need you.
 
 ### It never touches its own pane
 
@@ -123,12 +153,12 @@ is fair game — there is no opt-in.
 
 Because every "Yes" is accepted, the decision log is the only account of what
 was pressed. It lives in SQLite at `~/.local/state/nodder/decisions.db`, and
-stores the whole menu, not just the chosen option — a skip is only readable
-after the fact if you can see what it declined.
+stores the whole menu, not just the chosen option — a pause is only readable
+after the fact if you can see what was on offer.
 
 ```
 26/08/2026 18:12:37  w16:p3  ACCEPT  "Yes"
-26/08/2026 18:14:02  w16:p3  SKIP    "Spaces"
+26/08/2026 18:14:02  w16:p3  PAUSE   "Spaces"
 ```
 
 ```bash
@@ -186,7 +216,7 @@ across every pane, without relaunching anything.
 ## Development
 
 ```bash
-make test     # 105 tests, standard library unittest
+make test     # 118 tests, standard library unittest
 make run      # run from the source tree
 make clean
 ```

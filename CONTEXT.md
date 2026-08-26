@@ -61,12 +61,21 @@ grant trust, or change settings permanently.
 _Avoid_: Allowlisted, safe, approved, positive
 
 **Acceptance**:
-Pressing Enter on a Blocked agent because its Selected Option is an Affirmative
-Option.
+Pressing Enter on a Blocked agent because a "Yes" was on offer and selected.
+Happens in every Pane, whether or not the user is looking at it.
 _Avoid_: Auto-accept, approval, confirming, clicking yes
 
-**Skip**:
-Deliberately leaving a Blocked agent untouched because its Selected Option is
-not an Affirmative Option. A Skip is a recorded outcome, not a failure — the
-user answers the Prompt themselves.
-_Avoid_: Ignore, pass, reject, deny, timeout
+**Pause**:
+Leaving a Prompt on screen because it is a real decision — no "Yes" was on
+offer, or the "Yes" is not the Selected Option. The Prompt stays up and the
+user answers it. A Pause is the outcome that wants surfacing; it is a
+hand-back, never a refusal.
+_Avoid_: Skip, ignore, reject, deny, timeout, pass
+
+**Ignore**:
+Doing nothing about a Blocked agent that is showing no menu at all. Herdr's
+fallback rule reports Blocked whenever the words "do you want to" and a "❯"
+appear anywhere in a Pane's buffer, so this fires on ordinary transcripts.
+Nothing is decided and nothing is recorded — an Ignore in the record would
+bury the Pauses.
+_Avoid_: Skip, noise, false positive, no-op

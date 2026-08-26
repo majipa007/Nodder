@@ -55,7 +55,7 @@ class RecordTest(JournalTestCase):
         # A Skip is only readable after the fact if you can see what it
         # declined to press.
         self.journal.record(
-            "w16:p1", Decision(Action.SKIP, "No", "not affirmative"),
+            "w16:p1", Decision(Action.PAUSE, "No", "not affirmative"),
             at=AT, options=MENU,
         )
         (row,) = self.journal.query()
@@ -70,9 +70,9 @@ class RecordTest(JournalTestCase):
         self.assertEqual(self.journal.query()[0].signature, "abc123")
 
     def test_a_decision_with_no_option_still_records(self):
-        self.journal.record("w16:p1", Decision(Action.SKIP, None, "no menu"), at=AT)
+        self.journal.record("w16:p1", Decision(Action.PAUSE, None, "no menu"), at=AT)
         (row,) = self.journal.query()
-        self.assertEqual(row.outcome, "SKIP")
+        self.assertEqual(row.outcome, "PAUSE")
         self.assertIsNone(row.label)
         self.assertEqual(row.options, [])
 
@@ -123,7 +123,7 @@ class RenderingTest(JournalTestCase):
 class QueryTest(JournalTestCase):
     def populate(self):
         self.journal.record("w16:p1", Decision(Action.ACCEPT, "Yes", "w"), at=AT)
-        self.journal.record("w17:p2", Decision(Action.SKIP, "No", "w"), at=LATER)
+        self.journal.record("w17:p2", Decision(Action.PAUSE, "No", "w"), at=LATER)
         self.journal.record("w16:p1", Decision(Action.ACCEPT, "Yes", "w"), at=LATER)
 
     def test_returns_oldest_first(self):
@@ -137,7 +137,7 @@ class QueryTest(JournalTestCase):
 
     def test_filters_by_outcome_case_insensitively(self):
         self.populate()
-        self.assertEqual(len(self.journal.query(outcome="skip")), 1)
+        self.assertEqual(len(self.journal.query(outcome="pause")), 1)
 
     def test_filters_by_time_window(self):
         self.populate()

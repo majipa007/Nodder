@@ -97,7 +97,7 @@ class ParseOptionsTest(unittest.TestCase):
             "\n esc to cancel · enter to confirm\n"
         )
         self.assertEqual(selected_option(snapshot), "Continue without changes")
-        self.assertEqual(classify(snapshot).action, Action.SKIP)
+        self.assertEqual(classify(snapshot).action, Action.PAUSE)
 
     def test_horizontal_rules_are_never_options(self):
         options = parse_options(fixture("permission_unnumbered.txt"))
@@ -146,7 +146,7 @@ class ParseOptionsTest(unittest.TestCase):
             "\n esc to cancel · enter to confirm\n"
         )
         decision = classify(snapshot)
-        self.assertEqual(decision.action, Action.SKIP)
+        self.assertEqual(decision.action, Action.PAUSE)
         self.assertEqual(
             decision.label, "No, and tell Claude what to do differently (esc)"
         )
@@ -171,6 +171,51 @@ class SelectedOptionTest(unittest.TestCase):
         self.assertIsNone(selected_option(fixture("real_working_not_a_prompt.txt")))
 
 
+def menu(*options, question="Do you want to proceed?"):
+    """A snapshot of a menu, with the footer Claude Code always draws."""
+    body = "\n".join(
+        f" {'❯' if selected else ' '} {n}. {label}"
+        for n, (label, selected) in enumerate(options, start=1)
+    )
+    return f"{question}\n{body}\n esc to cancel · enter to confirm\n"
+
+
+class YesOnOfferTest(unittest.TestCase):
+    """A menu offering a "Yes" is a permission prompt and is accepted
+    anywhere. A menu offering none is a decision and belongs to the human."""
+
+    def test_a_menu_with_a_yes_selected_is_accepted(self):
+        snapshot = menu(("Yes", True), ("No", False))
+        self.assertEqual(classify(snapshot).action, Action.ACCEPT)
+
+    def test_a_decision_with_no_yes_anywhere_pauses(self):
+        snapshot = menu(
+            ("Spaces", True), ("Tabs", False),
+            question="Tabs or spaces?",
+        )
+        decision = classify(snapshot)
+        self.assertEqual(decision.action, Action.PAUSE)
+        self.assertEqual(decision.reason, "a decision with no yes on offer")
+
+    def test_a_yes_offered_but_not_selected_pauses_rather_than_guessing(self):
+        # Pressing Enter here would answer "No". Hand it over instead.
+        snapshot = menu(("Yes", False), ("No", True))
+        decision = classify(snapshot)
+        self.assertEqual(decision.action, Action.PAUSE)
+        self.assertEqual(decision.reason, "a yes was offered but not selected")
+
+    def test_a_consequential_yes_is_still_accepted(self):
+        snapshot = menu(("Yes, I trust this folder", True), ("No", False))
+        self.assertEqual(classify(snapshot).action, Action.ACCEPT)
+
+    def test_something_that_is_not_a_menu_is_ignored_not_paused(self):
+        # The distinction that keeps the log readable: nothing to decide here,
+        # so it must not appear as a decision waiting on the user.
+        decision = classify("● Working on it…\n")
+        self.assertEqual(decision.action, Action.IGNORE)
+        self.assertIsNone(decision.label)
+
+
 class ClassifyTest(unittest.TestCase):
     def test_plain_yes_is_accepted(self):
         decision = classify(fixture("bash_permission_numbered.txt"))
@@ -190,37 +235,37 @@ class ClassifyTest(unittest.TestCase):
         self.assertEqual(decision.action, Action.ACCEPT)
         self.assertEqual(decision.label, "Yes, I trust this folder")
 
-    def test_question_prompt_is_skipped(self):
+    def test_question_prompt_is_paused_for_the_human(self):
         decision = classify(fixture("question_prompt.txt"))
-        self.assertEqual(decision.action, Action.SKIP)
+        self.assertEqual(decision.action, Action.PAUSE)
         self.assertEqual(
             decision.label,
             "Run migrations in a transaction and roll back on failure",
         )
 
-    def test_non_prompt_output_is_skipped(self):
+    def test_non_prompt_output_is_ignored(self):
         decision = classify(fixture("real_working_not_a_prompt.txt"))
-        self.assertEqual(decision.action, Action.SKIP)
+        self.assertEqual(decision.action, Action.IGNORE)
         self.assertIsNone(decision.label)
 
     def test_yes_match_is_case_insensitive_and_ignores_surrounding_space(self):
         snapshot = "Do you want to proceed?\n ❯ 1.   yes, run it \n   2. No\n esc to cancel · enter to confirm\n"
         self.assertEqual(classify(snapshot).action, Action.ACCEPT)
 
-    def test_a_no_selected_option_is_skipped(self):
+    def test_a_no_selected_option_is_paused(self):
         snapshot = "Do you want to proceed?\n   1. Yes\n ❯ 2. No\n esc to cancel · enter to confirm\n"
         decision = classify(snapshot)
-        self.assertEqual(decision.action, Action.SKIP)
+        self.assertEqual(decision.action, Action.PAUSE)
         self.assertEqual(decision.label, "No")
 
     def test_word_beginning_with_yes_is_not_an_affirmative(self):
         snapshot = "Do you want to proceed?\n ❯ 1. Yesterday's backup\n   2. No\n esc to cancel · enter to confirm\n"
-        self.assertEqual(classify(snapshot).action, Action.SKIP)
+        self.assertEqual(classify(snapshot).action, Action.PAUSE)
 
     def test_hyphenated_words_starting_with_yes_are_not_affirmative(self):
         for label in ("Yes-man refactor", "Yes-and pattern for the wrapper"):
             snapshot = f"Do you want to proceed?\n ❯ 1. {label}\n   2. No\n esc to cancel · enter to confirm\n"
-            self.assertEqual(classify(snapshot).action, Action.SKIP, label)
+            self.assertEqual(classify(snapshot).action, Action.PAUSE, label)
 
     def test_yes_followed_by_punctuation_is_affirmative(self):
         for label in ("Yes", "Yes, run it", "Yes: proceed"):

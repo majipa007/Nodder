@@ -4,7 +4,7 @@ import pathlib
 import tempfile
 import unittest
 
-from nodder.daemon import selectable_targets, watch_cycle
+from nodder.daemon import pending_decisions, selectable_targets, watch_cycle
 from nodder.herdr import Agent, HerdrError, Wait
 from nodder.journal import Journal
 from nodder.prompts import Action, prompt_signature
@@ -64,10 +64,10 @@ class WatchCycleTest(unittest.TestCase):
         self.assertEqual(decision.action, Action.ACCEPT)
         self.assertEqual(client.kinds("enter"), [("enter", "w16:p1")])
 
-    def test_question_prompt_is_not_answered(self):
+    def test_question_prompt_is_paused_not_answered(self):
         client = FakeClient(QUESTION)
         decision, _ = self.cycle(client)
-        self.assertEqual(decision.action, Action.SKIP)
+        self.assertEqual(decision.action, Action.PAUSE)
         self.assertEqual(client.kinds("enter"), [])
 
     def test_dry_run_decides_but_never_presses(self):
@@ -96,12 +96,14 @@ class WatchCycleTest(unittest.TestCase):
         self.assertEqual(waits[0][2], ("blocked",))
         self.assertEqual(waits[-1][2], FakeClient.UNBLOCKED_STATES)
 
-    def test_blocked_on_something_that_is_not_a_menu_is_skipped(self):
+    def test_blocked_on_something_that_is_not_a_menu_is_not_a_decision(self):
+        # herdr's fallback rule fires on ordinary transcripts. Recording those
+        # would bury the Pauses that actually need the human.
         client = FakeClient(NO_MENU)
         decision, _ = self.cycle(client)
-        self.assertEqual(decision.action, Action.SKIP)
-        self.assertIsNone(decision.label)
+        self.assertIsNone(decision)
         self.assertEqual(client.kinds("enter"), [])
+        self.assertEqual(self.lines(), [])
 
 
 class DuplicateSuppressionTest(unittest.TestCase):
@@ -133,7 +135,7 @@ class DuplicateSuppressionTest(unittest.TestCase):
         self.cycle(client, last=signature)
         self.assertEqual(len(self.lines()), 1)
 
-    def test_an_unanswered_skip_is_recorded_once_however_long_it_waits(self):
+    def test_an_unanswered_pause_is_recorded_once_however_long_it_waits(self):
         # A Skip is never pressed, so the Prompt stays up until a human acts.
         client = FakeClient(QUESTION, clears=False)
         _, signature = self.cycle(client)
@@ -239,3 +241,59 @@ class WatchCycleErrorTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PendingDecisionsTest(unittest.TestCase):
+    """`nodder --waiting` answers "which panes need me?" from live state."""
+
+    class Client:
+        UNBLOCKED_STATES = ("idle", "working", "done", "unknown")
+
+        def __init__(self, agents, snapshots):
+            self._agents = agents
+            self._snapshots = snapshots
+
+        def list_agents(self):
+            return self._agents
+
+        def read_detection(self, target, lines=40):
+            return self._snapshots[target]
+
+    def agent(self, pane_id, status="blocked", kind="claude"):
+        return Agent(pane_id=pane_id, kind=kind, status=status)
+
+    def test_lists_only_agents_paused_on_a_real_decision(self):
+        client = self.Client(
+            [self.agent("w1:p1"), self.agent("w1:p2"), self.agent("w1:p3")],
+            {
+                "w1:p1": QUESTION,     # a decision -> needs the human
+                "w1:p2": ACCEPTABLE,   # a yes -> nodder handles it
+                "w1:p3": NO_MENU,      # not a menu -> nothing to do
+            },
+        )
+        waiting = pending_decisions(client)
+        self.assertEqual([a.pane_id for a, _, _ in waiting], ["w1:p1"])
+
+    def test_reports_the_options_so_the_user_can_see_the_choice(self):
+        client = self.Client([self.agent("w1:p1")], {"w1:p1": QUESTION})
+        (_, decision, options), = pending_decisions(client)
+        self.assertEqual(decision.action, Action.PAUSE)
+        self.assertEqual(len(options), 2)
+
+    def test_agents_that_are_not_blocked_are_not_waiting(self):
+        client = self.Client(
+            [self.agent("w1:p1", status="working")], {"w1:p1": QUESTION}
+        )
+        self.assertEqual(pending_decisions(client), [])
+
+    def test_excludes_the_daemons_own_pane(self):
+        client = self.Client([self.agent("w1:p1")], {"w1:p1": QUESTION})
+        self.assertEqual(pending_decisions(client, self_pane="w1:p1"), [])
+
+    def test_a_pane_that_cannot_be_read_is_passed_over(self):
+        class Broken(self.Client):
+            def read_detection(self, target, lines=40):
+                raise HerdrError("gone")
+
+        client = Broken([self.agent("w1:p1")], {})
+        self.assertEqual(pending_decisions(client), [])

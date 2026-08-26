@@ -50,9 +50,9 @@ class RealQuestionPromptTest(unittest.TestCase):
     def setUp(self):
         self.snapshot = fixture("real_question_prompt.txt")
 
-    def test_is_skipped(self):
+    def test_is_paused_for_the_human(self):
         decision = classify(self.snapshot)
-        self.assertEqual(decision.action, Action.SKIP)
+        self.assertEqual(decision.action, Action.PAUSE)
         self.assertEqual(decision.label, "Spaces")
 
     def test_multi_line_option_descriptions_do_not_become_options(self):
@@ -86,23 +86,23 @@ class RealTypedMessageTest(unittest.TestCase):
     def test_a_typed_message_is_not_a_menu(self):
         self.assertEqual(parse_options(self.snapshot), [])
 
-    def test_it_is_skipped_for_want_of_a_menu(self):
+    def test_it_is_ignored_for_want_of_a_menu(self):
         decision = classify(self.snapshot)
-        self.assertEqual(decision.action, Action.SKIP)
+        self.assertEqual(decision.action, Action.IGNORE)
         self.assertIsNone(decision.label)
 
-    def test_it_would_still_be_skipped_if_the_message_began_with_yes(self):
+    def test_it_is_still_ignored_if_the_message_begins_with_yes(self):
         # The guard must not depend on the text happening not to say "Yes".
         hostile = self.snapshot.replace(
             "❯ okay what is this SKIP thing?", "❯ Yes please do the thing"
         )
-        self.assertEqual(classify(hostile).action, Action.SKIP)
+        self.assertEqual(classify(hostile).action, Action.IGNORE)
 
 
 class RealWorkingOutputTest(unittest.TestCase):
     def test_a_busy_agent_offers_nothing_to_accept(self):
         decision = classify(fixture("real_working_not_a_prompt.txt"))
-        self.assertEqual(decision.action, Action.SKIP)
+        self.assertEqual(decision.action, Action.IGNORE)
         self.assertIsNone(decision.label)
 
 
