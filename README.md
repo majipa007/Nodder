@@ -4,6 +4,12 @@
   <em>It presses Yes. It leaves the real decisions to you.</em>
 </p>
 
+<!-- Drop the banner at assets/banner.png, then uncomment:
+<p align="center">
+  <img src="assets/banner.png" width="640" alt="nodder">
+</p>
+-->
+
 <p align="center">
   <img alt="MIT" src="https://img.shields.io/badge/license-MIT-black">
   <img alt="Python 3.10+" src="https://img.shields.io/badge/python-3.10%2B-black">
@@ -14,30 +20,6 @@
 Run six Claude Code sessions across a [herdr](https://herdr.dev) workspace and
 five of them are sitting on *"Do you want to proceed?"* while you look at the
 sixth. nodder watches all of them.
-
-```
-$ nodder run
-
-⚡ nodder                        3 agents  ·  312 yes all-time  ·  1 need you
-ACCEPTED  last 60 min                                              peak 14
- ⠀⠀⠀⣀⣀⡀⠀⠀⠀⠀⠀⣠⣴⣶⣶⣆⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣶⣿⣷⣦⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
- ⠀⢀⣴⣿⣿⣷⣦⣤⣀⣤⣶⣿⣿⣿⣿⣿⣧⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣰⣿⣿⣿⣿⣿⣿⣤⣀⣀⣀⣤⣶⣶⣦⣀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣤⣀⡀
- ⣤⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣤⠀⠀⠀⠀⠀⠀⣀⣀⡀⠀⠀⢀⣠⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣦⠀⠀⠀⠀⠀⢀⣼⣿⣿⣿⣿⣿
- ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣶⣤⣠⣤⣴⣶⣦⣤⠀⠀⣠⣶⣿⣿⣷⣶⣶⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣦⡀⠀⢀⣼⣿⣿⣿⣿⣿⣿
- └ 60m ago ───────────────────────────────────────────────────────── now┘
-
-PER PANE  ·  last 60 min
-WHERE                 STATE        YES  PAUSED            ACTIVITY
-  sluice/p2           blocked        4       1            ·············▃▁·▁ NEEDS YOU
-▸ autoAccept/p1       working       43       0            ▁·▄▆▃▅▇▄▂·▃█▆▄▂·▂▃
-  sluice/p4           idle          12       0            ··▂▁··▁▂▁··▂▁··▁▂▁
-
-RECENT (last 10)
-  20:54:25  autoAccept/p1      ACCEPT Yes
-  20:48:43  sluice/p2          PAUSE  Spaces
-
- q quit    r refresh
-```
 
 ## Install
 
