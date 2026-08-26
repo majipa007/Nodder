@@ -87,10 +87,47 @@ class SnapshotTest(unittest.TestCase):
             self.board.refresh()
         self.assertEqual(self.board.snapshot.rows[0].paused, 1)
 
-    def test_blocked_agents_are_counted_as_waiting(self):
-        snap = self.build([agent("w17:p2", status="blocked"),
-                           agent("w17:p4")])
+    def build_blocked(self, snapshot_text):
+        """One blocked agent whose screen shows `snapshot_text`."""
+        with mock.patch.object(ui.herdr, "list_agents",
+                               return_value=[agent("w17:p2", status="blocked")]), \
+             mock.patch.object(ui.herdr, "list_workspaces",
+                               return_value=WORKSPACES), \
+             mock.patch.object(ui.herdr, "read_detection",
+                               return_value=snapshot_text):
+            self.board.refresh()
+        return self.board.snapshot
+
+    def test_a_pane_paused_on_a_real_decision_needs_you(self):
+        snap = self.build_blocked(
+            "Tabs or spaces?\n ❯ 1. Spaces\n   2. Tabs\n esc to cancel\n"
+        )
         self.assertEqual(snap.waiting, 1)
+        self.assertEqual(snap.rows[0].note, "NEEDS YOU")
+
+    def test_a_pane_about_to_be_accepted_does_not_need_you(self):
+        # Blocked alone is not enough: most blocked panes are a "Yes" that
+        # nodder is about to press, and flagging those trains you to ignore
+        # the flag.
+        snap = self.build_blocked(
+            "Do you want to proceed?\n ❯ 1. Yes\n   2. No\n esc to cancel\n"
+        )
+        self.assertEqual(snap.waiting, 0)
+        self.assertEqual(snap.rows[0].note, "")
+
+    def test_a_pane_blocked_on_no_menu_does_not_need_you(self):
+        snap = self.build_blocked("● Working on it…\n")
+        self.assertEqual(snap.waiting, 0)
+
+    def test_an_unreadable_blocked_pane_is_not_claimed_to_need_you(self):
+        with mock.patch.object(ui.herdr, "list_agents",
+                               return_value=[agent("w17:p2", status="blocked")]), \
+             mock.patch.object(ui.herdr, "list_workspaces",
+                               return_value=WORKSPACES), \
+             mock.patch.object(ui.herdr, "read_detection",
+                               side_effect=HerdrError("gone")):
+            self.board.refresh()
+        self.assertEqual(self.board.snapshot.waiting, 0)
 
     def test_blocked_agents_sort_to_the_top(self):
         snap = self.build([

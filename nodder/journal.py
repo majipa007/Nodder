@@ -203,6 +203,34 @@ class Journal:
             counts.setdefault(row["target"], {})[row["outcome"]] = row["n"]
         return counts
 
+    def activity(
+        self,
+        since: datetime.datetime,
+        until: datetime.datetime,
+        buckets: int,
+        target: str | None = None,
+        outcome: str | None = "ACCEPT",
+    ) -> list[int]:
+        """Decisions per equal time bucket across [since, until].
+
+        Feeds the dashboard charts. Bucketing happens here rather than in SQL
+        because the boundaries have to line up exactly with the chart's
+        columns, and sqlite's date arithmetic makes that awkward to express.
+        """
+        if buckets <= 0:
+            return []
+        span = (until - since).total_seconds()
+        if span <= 0:
+            return [0] * buckets
+
+        counts = [0] * buckets
+        for record in self.query(since=since, until=until, outcome=outcome,
+                                 target=target):
+            offset = (record.at - since).total_seconds()
+            index = int(offset / span * buckets)
+            counts[min(max(index, 0), buckets - 1)] += 1
+        return counts
+
     def last_id(self) -> int:
         """The highest row id, or 0 when nothing has been recorded yet."""
         with self._read() as conn:

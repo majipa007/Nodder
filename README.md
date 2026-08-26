@@ -11,12 +11,18 @@ you.
 ```
 $ nodder run
 
-⚡ nodder                             2 agent(s)   39 accepted   1 blocked
+⚡ nodder                                  3 agents  ·  59 yes  ·  1 need you
+ACCEPTED  last 60 min                                              peak 14
+ ⠀⠀⠀⣀⣀⡀⠀⠀⠀⠀⠀⣠⣴⣶⣶⣆⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣶⣿⣷⣦⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
+ ⠀⢀⣴⣿⣿⣷⣦⣤⣀⣤⣶⣿⣿⣿⣿⣿⣧⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣰⣿⣿⣿⣿⣿⣿⣤⣀⣀⣀⣤⣶⣶⣦⣀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣤⣀⡀
+ ⣤⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣤⠀⠀⠀⠀⠀⠀⣀⣀⡀⠀⠀⢀⣠⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣦⠀⠀⠀⠀⠀⢀⣼⣿⣿⣿⣿⣿
+ ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣶⣤⣠⣤⣴⣶⣦⣤⠀⠀⣠⣶⣿⣿⣷⣶⣶⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣦⡀⠀⢀⣼⣿⣿⣿⣿⣿⣿
+ └ 60m ago ───────────────────────────────────────────────────────── now┘
 
-WHERE                 AGENT    STATE        YES  PAUSED
-  sluice/p2           claude   blocked        4       1   needs you?
-▸ autoAccept/p1       claude   working       39       5
-  sluice/p4           claude   idle          12       0
+WHERE                 STATE        YES  PAUSED            LAST 60m
+  sluice/p2           blocked        4       1            ·············▃▁·▁ NEEDS YOU
+▸ autoAccept/p1       working       43       5            ▁·▄▆▃▅▇▄▂·▃█▆▄▂·▂▃
+  sluice/p4           idle          12       0            ··▂▁··▁▂▁··▂▁··▁▂▁
 
 RECENT (last 10)
   20:54:25  autoAccept/p1      ACCEPT Yes
@@ -26,6 +32,10 @@ RECENT (last 10)
 
  q quit    r refresh
 ```
+
+The chart is braille — eight addressable dots per character cell, so it has
+four times the vertical resolution of a block-character chart. It grows into
+whatever space the table and the recent list don't need.
 
 Panes are named by workspace and pane number, `▸` marks the one you're focused
 on, and `YES` / `PAUSED` are that pane's running totals. Blocked panes sort to
@@ -237,7 +247,7 @@ across every pane, without relaunching anything.
 ## Development
 
 ```bash
-make test     # 141 tests, standard library unittest
+make test     # 170 tests, standard library unittest
 make run      # run from the source tree
 make clean
 ```
