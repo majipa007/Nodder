@@ -38,9 +38,11 @@ WINDOW_MINUTES = 60
 #: Buckets behind each pane's sparkline. Kept small: it is a table cell.
 TREND_BUCKETS = 24
 
-#: Columns of data behind the header chart. Braille packs two per
-#: character cell, so this is generous for any sane terminal width.
-HISTORY_BUCKETS = 240
+#: Buckets behind the header chart: one per minute of the window. Finer
+#: buckets than this render sparse real activity as isolated single-dot
+#: needles; a minute's worth clumps into something with a readable shape,
+#: and stretches to a few columns each on a wide terminal.
+HISTORY_BUCKETS = WINDOW_MINUTES
 
 
 @dataclass
