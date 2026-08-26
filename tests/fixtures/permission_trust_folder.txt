@@ -1,7 +1,7 @@
 ────────────────────────────────────────────────────────────────────────────
  Do you trust the files in this folder?
 
-   /home/toji/Documents/Projects/untrusted
+   /home/user/projects/untrusted
 
  Claude Code may read, execute or modify files in this folder.
 
