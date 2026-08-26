@@ -94,7 +94,12 @@ def watch_cycle(
     journal.record(
         target, decision, signature=signature, options=parse_options(snapshot)
     )
-    log.info("%s %s %s", target, decision.action.name, decision.label)
+    log.info(
+        "%s %-6s %s",
+        target,
+        decision.action.name,
+        decision.label if decision.label is not None else f"({decision.reason})",
+    )
 
     return decision, _remember(client, target, signature)
 

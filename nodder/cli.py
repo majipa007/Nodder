@@ -90,7 +90,7 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     print(f"{BANNER}{' (dry run)' if args.dry_run else ''} — "
-          f"{len(targets)} agent(s), log: {journal.path}", file=sys.stderr)
+          f"{len(targets)} agent(s), db: {journal.path}", file=sys.stderr)
 
     supervisor = Supervisor(
         journal=journal, dry_run=args.dry_run, self_pane=self_pane
