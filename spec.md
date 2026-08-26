@@ -225,6 +225,24 @@ Selected Option label.
 
 ---
 
+## 8a. Dashboard
+
+`nodder run` starts the daemon with a curses dashboard on the same terminal.
+It exists because the plain log answers "what happened" but not "what is the
+state of my session":
+
+- Panes are named `workspace-label/pane`, not by opaque id. `w17:p2` says
+  nothing; `sluice/p2` says where to look.
+- Each row carries that Pane's running Acceptance and Pause totals.
+- Blocked Panes sort to the top, and the focused Pane is marked.
+- The last 10 decisions scroll beneath.
+
+Curses is standard library, so the dependency-free install still holds. The
+dashboard owns the terminal, so logging is silenced while it runs; `run
+--plain` keeps the stderr log instead and is what the systemd unit uses.
+
+---
+
 ## 9. Scope
 
 **Panes:** all of them. Every Agent in the session is watched. There is no

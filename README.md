@@ -9,16 +9,27 @@ workspace. Each one stops and waits for you to press Enter on
 you.
 
 ```
-$ nodder --verbose
-⚡ nodder: ON — 4 agent(s), db: ~/.local/state/nodder/decisions.db
-[auto-accept] watching w1:p1
-[auto-accept] watching w1:p3
-[auto-accept] watching w2:p1
-[auto-accept] watching w2:p4
-[auto-accept] w2:p4 ACCEPT Yes
-[auto-accept] w1:p3 ACCEPT Yes, run it
-[auto-accept] w2:p1 NEEDS YOU — Roll back on failure
+$ nodder run
+
+⚡ nodder                             2 agent(s)   39 accepted   1 blocked
+
+WHERE                 AGENT    STATE        YES  PAUSED
+  sluice/p2           claude   blocked        4       1   needs you?
+▸ autoAccept/p1       claude   working       39       5
+  sluice/p4           claude   idle          12       0
+
+RECENT (last 10)
+  20:54:25  autoAccept/p1      ACCEPT Yes
+  20:48:43  sluice/p2          PAUSE  Spaces
+  20:48:34  autoAccept/p1      ACCEPT Yes, run it
+  ...
+
+ q quit    r refresh
 ```
+
+Panes are named by workspace and pane number, `▸` marks the one you're focused
+on, and `YES` / `PAUSED` are that pane's running totals. Blocked panes sort to
+the top.
 
 ---
 
@@ -64,19 +75,29 @@ Run `make` on its own to list every target.
 ## Use
 
 ```bash
-nodder --status          # which agents would be watched
-nodder --dry-run -v      # decide and record, but press nothing
-nodder -v                # run for real
+nodder run               # ← the one you want: daemon + live dashboard
 ```
 
-Stop with Ctrl-C, or run it in the background with `make service`.
+Everything else:
+
+```bash
+nodder --status          # which agents would be watched
+nodder --waiting         # what needs a decision from you right now
+nodder --dry-run -v      # decide and record, but press nothing
+nodder run --plain       # daemon with a plain stderr log, no dashboard
+```
+
+Quit the dashboard with `q`, or stop a plain run with Ctrl-C. To keep it
+running in the background instead, `make service`.
 
 **Run `--dry-run` first.** It exercises the whole pipeline and writes to the
 same database, but never touches your agents. Read the decisions back, and if
 you agree with them, drop the flag.
 
-| Flag | Effect |
+| Command / flag | Effect |
 |---|---|
+| **`run`** | **Start the daemon with the live dashboard** |
+| `--plain` | With `run`, log to stderr instead of drawing the dashboard |
 | `--dry-run` | Classify and record, never send Enter |
 | `--verbose`, `-v` | Log every decision to stderr |
 | `--status` | List agents and whether each is watched, then exit |
@@ -216,7 +237,7 @@ across every pane, without relaunching anything.
 ## Development
 
 ```bash
-make test     # 118 tests, standard library unittest
+make test     # 141 tests, standard library unittest
 make run      # run from the source tree
 make clean
 ```

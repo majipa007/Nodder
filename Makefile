@@ -55,11 +55,11 @@ uninstall: ## Remove the installed executable and unit file
 	@rm -f $(BINDIR)/nodder $(UNITDIR)/nodder.service
 	@echo "removed $(BINDIR)/nodder"
 
-run: ## Run from the source tree
-	@$(PYTHON) -m nodder --verbose
+run: ## Run from the source tree with the dashboard
+	@$(PYTHON) -m nodder run
 
 dry-run: ## Run from the source tree, deciding but never pressing
-	@$(PYTHON) -m nodder --verbose --dry-run
+	@$(PYTHON) -m nodder run --dry-run
 
 status: ## List agents and whether each would be watched
 	@$(PYTHON) -m nodder --status

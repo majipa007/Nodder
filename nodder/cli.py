@@ -7,8 +7,9 @@ import logging
 import os
 import pathlib
 import sys
+import threading
 
-from . import herdr
+from . import herdr, ui
 from .daemon import (
     Supervisor,
     pending_decisions,
@@ -28,6 +29,14 @@ def build_parser() -> argparse.ArgumentParser:
                     "in a herdr session, including panes you are not watching.",
         epilog="Every option beginning with \"Yes\" is accepted, including ones "
                "that spend money or grant trust. Run --dry-run first.",
+    )
+    parser.add_argument(
+        "command", nargs="?", choices=["run"], default=None,
+        help="`run` starts the daemon with the live dashboard",
+    )
+    parser.add_argument(
+        "--plain", action="store_true",
+        help="with `run`, log to stderr instead of drawing the dashboard",
     )
     parser.add_argument(
         "--dry-run", action="store_true",
@@ -114,15 +123,32 @@ def main(argv: list[str] | None = None) -> int:
         print(f"{decision.action.name} {decision.label!r} ({decision.reason})")
         return 0
 
-    print(f"{BANNER}{' (dry run)' if args.dry_run else ''} — "
-          f"{len(targets)} agent(s), db: {journal.path}", file=sys.stderr)
-
     supervisor = Supervisor(
         journal=journal, dry_run=args.dry_run, self_pane=self_pane
     )
+
+    # The dashboard owns the screen, so the two cannot both be on. `run`
+    # draws it; every other invocation keeps the plain stderr log.
+    with_dashboard = args.command == "run" and not args.plain
+
+    if not with_dashboard:
+        print(f"{BANNER}{' (dry run)' if args.dry_run else ''} — "
+              f"{len(targets)} agent(s), db: {journal.path}", file=sys.stderr)
+        try:
+            supervisor.run()
+        except KeyboardInterrupt:
+            supervisor.stop.set()
+            print("stopped", file=sys.stderr)
+        return 0
+
+    logging.disable(logging.CRITICAL)   # nothing may write over the screen
+    worker = threading.Thread(target=supervisor.run, name="daemon", daemon=True)
+    worker.start()
     try:
-        supervisor.run()
+        ui.run(journal, self_pane=self_pane, dry_run=args.dry_run)
     except KeyboardInterrupt:
+        pass
+    finally:
         supervisor.stop.set()
-        print("stopped", file=sys.stderr)
+        worker.join(timeout=3)
     return 0

@@ -7,7 +7,7 @@ After=default.target
 
 [Service]
 Type=simple
-ExecStart=@BINDIR@/nodder --verbose
+ExecStart=@BINDIR@/nodder run --plain --verbose
 Restart=on-failure
 RestartSec=5
 

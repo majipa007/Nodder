@@ -38,6 +38,22 @@ class Agent:
     status: str
     workspace_id: str = ""
     title: str = ""
+    focused: bool = False
+
+    @property
+    def pane(self) -> str:
+        """Just the pane part of the id: "w16:p1" -> "p1"."""
+        _, _, pane = self.pane_id.partition(":")
+        return pane or self.pane_id
+
+    def where(self, workspaces: dict[str, str] | None = None) -> str:
+        """Human-readable location, e.g. "sluice/p2".
+
+        Falls back to the opaque workspace id when no label is known, so this
+        never hides which pane is meant.
+        """
+        label = (workspaces or {}).get(self.workspace_id) or self.workspace_id
+        return f"{label}/{self.pane}"
 
 
 def _run(argv: list[str], timeout: float | None = None) -> subprocess.CompletedProcess:
@@ -76,9 +92,22 @@ def list_agents() -> list[Agent]:
             status=entry.get("agent_status", "unknown"),
             workspace_id=entry.get("workspace_id", ""),
             title=entry.get("terminal_title_stripped", ""),
+            focused=bool(entry.get("focused", False)),
         )
         for entry in agents
     ]
+
+
+def list_workspaces() -> dict[str, str]:
+    """Workspace id -> its label, e.g. {"w16": "autoAccept"}.
+
+    Used only for display: "sluice/p2" says far more than "w17:p2".
+    """
+    payload = _run_json([HERDR, "workspace", "list"], timeout=10)
+    return {
+        entry["workspace_id"]: entry.get("label") or entry["workspace_id"]
+        for entry in payload.get("result", {}).get("workspaces", [])
+    }
 
 
 def read_detection(target: str, lines: int = 40) -> str:

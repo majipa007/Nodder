@@ -187,6 +187,22 @@ class Journal:
             rows = conn.execute(sql, params).fetchall()
         return [_record(row) for row in reversed(rows)]
 
+    def tally(self) -> dict[str, dict[str, int]]:
+        """How many of each outcome per target: {"w16:p1": {"ACCEPT": 12}}.
+
+        Counted in SQL rather than by reading rows back, so the dashboard stays
+        cheap no matter how long the record grows.
+        """
+        counts: dict[str, dict[str, int]] = {}
+        with self._read() as conn:
+            rows = conn.execute(
+                "SELECT target, outcome, COUNT(*) AS n FROM decisions "
+                "GROUP BY target, outcome"
+            ).fetchall()
+        for row in rows:
+            counts.setdefault(row["target"], {})[row["outcome"]] = row["n"]
+        return counts
+
     def last_id(self) -> int:
         """The highest row id, or 0 when nothing has been recorded yet."""
         with self._read() as conn:
