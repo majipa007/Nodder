@@ -1,2 +1,2 @@
-Banner lives here as banner.png (1280x640 or 1280x400).
-Uncomment the <img> block at the top of README.md once it exists.
+nodder.png is the banner: 1280x640, which is also GitHub's social
+preview size (Settings -> Social preview).

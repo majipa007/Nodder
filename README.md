@@ -1,14 +1,10 @@
-<h1 align="center">nodder</h1>
-
 <p align="center">
-  <em>It presses Yes. It leaves the real decisions to you.</em>
+  <img src="assets/nodder.png" width="640" alt="nodder — it presses Yes">
 </p>
 
-<!-- Drop the banner at assets/banner.png, then uncomment:
 <p align="center">
-  <img src="assets/banner.png" width="640" alt="nodder">
+  <em>…and leaves the real decisions to you.</em>
 </p>
--->
 
 <p align="center">
   <img alt="MIT" src="https://img.shields.io/badge/license-MIT-black">
