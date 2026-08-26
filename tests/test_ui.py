@@ -7,6 +7,7 @@ needing a real terminal.
 
 import curses
 import datetime
+import sqlite3
 import pathlib
 import tempfile
 import unittest
@@ -18,6 +19,11 @@ from nodder.journal import Journal
 from nodder.prompts import Action, Decision
 
 WORKSPACES = {"w16": "autoAccept", "w17": "sluice"}
+
+
+def journal_schema():
+    from nodder.journal import SCHEMA
+    return SCHEMA
 
 
 def agent(pane_id, status="idle", workspace="w17", focused=False):
@@ -54,9 +60,10 @@ class SnapshotTest(unittest.TestCase):
         return self.board.snapshot
 
     def record(self, target, action, label, at=None):
+        # Inside the dashboard's window, which is relative to now.
         self.journal.record(
             target, Decision(action, label, "why"),
-            at=at or datetime.datetime(2026, 8, 26, 20, 0, 0),
+            at=at or datetime.datetime.now(),
         )
 
     def test_rows_are_named_by_workspace_and_pane(self):
@@ -77,15 +84,41 @@ class SnapshotTest(unittest.TestCase):
         (row,) = self.build([agent("w17:p2")]).rows
         self.assertEqual((row.accepted, row.paused), (1, 1))
 
-    def test_legacy_skip_rows_count_as_pauses(self):
-        # Rows written before Pause and Ignore were told apart.
-        self.journal.record("w17:p2", Decision(Action.PAUSE, "No", "why"))
+    def test_legacy_skip_rows_are_not_claimed_as_pauses(self):
+        # SKIP was the retired outcome that lumped real decisions in with
+        # herdr's false positives. Those rows cannot be told apart now, so
+        # counting them would overstate how often a human was needed.
+        with sqlite3.connect(self.journal.path) as conn:
+            conn.executescript(journal_schema())
+            conn.execute(
+                "INSERT INTO decisions (at, target, outcome, source) "
+                "VALUES (?, 'w17:p2', 'SKIP', 'legacy-log')",
+                (datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S"),),
+            )
         with mock.patch.object(ui.herdr, "list_agents",
                                return_value=[agent("w17:p2")]), \
              mock.patch.object(ui.herdr, "list_workspaces",
                                return_value=WORKSPACES):
             self.board.refresh()
-        self.assertEqual(self.board.snapshot.rows[0].paused, 1)
+        self.assertEqual(self.board.snapshot.rows[0].paused, 0)
+
+    def test_counts_are_scoped_to_the_window_not_all_of_history(self):
+        # The numbers sit beside a last-hour sparkline; they must describe
+        # the same span or the row contradicts itself.
+        old = datetime.datetime.now() - datetime.timedelta(
+            minutes=ui.WINDOW_MINUTES + 30)
+        self.record("w17:p2", Action.ACCEPT, "Yes", at=old)
+        self.record("w17:p2", Action.ACCEPT, "Yes")
+        snap = self.build([agent("w17:p2")])
+        self.assertEqual(snap.rows[0].accepted, 1)
+
+    def test_all_time_total_survives_in_the_header(self):
+        old = datetime.datetime.now() - datetime.timedelta(
+            minutes=ui.WINDOW_MINUTES + 30)
+        self.record("w17:p2", Action.ACCEPT, "Yes", at=old)
+        self.record("w17:p2", Action.ACCEPT, "Yes")
+        snap = self.build([agent("w17:p2")])
+        self.assertEqual(snap.lifetime_accepted, 2)
 
     def build_blocked(self, snapshot_text):
         """One blocked agent whose screen shows `snapshot_text`."""

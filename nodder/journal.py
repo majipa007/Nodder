@@ -187,20 +187,34 @@ class Journal:
             rows = conn.execute(sql, params).fetchall()
         return [_record(row) for row in reversed(rows)]
 
-    def tally(self) -> dict[str, dict[str, int]]:
+    def tally(
+        self,
+        since: datetime.datetime | None = None,
+        until: datetime.datetime | None = None,
+    ) -> dict[str, dict[str, int]]:
         """How many of each outcome per target: {"w16:p1": {"ACCEPT": 12}}.
 
-        Counted in SQL rather than by reading rows back, so the dashboard stays
-        cheap no matter how long the record grows.
+        Bounded by `since`/`until` when given, so a caller can ask about a
+        window rather than all of history. Counted in SQL rather than by
+        reading rows back, so it stays cheap however long the record grows.
         """
+        where, params = [], []
+        if since is not None:
+            where.append("at >= ?")
+            params.append(since.strftime(STORED))
+        if until is not None:
+            where.append("at <= ?")
+            params.append(until.strftime(STORED))
+
+        sql = "SELECT target, outcome, COUNT(*) AS n FROM decisions"
+        if where:
+            sql += " WHERE " + " AND ".join(where)
+        sql += " GROUP BY target, outcome"
+
         counts: dict[str, dict[str, int]] = {}
         with self._read() as conn:
-            rows = conn.execute(
-                "SELECT target, outcome, COUNT(*) AS n FROM decisions "
-                "GROUP BY target, outcome"
-            ).fetchall()
-        for row in rows:
-            counts.setdefault(row["target"], {})[row["outcome"]] = row["n"]
+            for row in conn.execute(sql, params).fetchall():
+                counts.setdefault(row["target"], {})[row["outcome"]] = row["n"]
         return counts
 
     def activity(

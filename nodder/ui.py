@@ -66,6 +66,8 @@ class Snapshot:
     dry_run: bool = False
     #: Session-wide acceptances per bucket over the last WINDOW_MINUTES.
     history: list[int] = field(default_factory=list)
+    #: Acceptances across the whole record, not just the window.
+    lifetime_accepted: int = 0
 
 
 class Dashboard:
@@ -94,17 +96,24 @@ class Dashboard:
         except HerdrError as exc:
             agents, workspaces, error = [], {}, str(exc)
 
-        tally = self.journal.tally()
         until = datetime.datetime.now()
         since = until - datetime.timedelta(minutes=WINDOW_MINUTES)
         history = self.journal.activity(since, until, HISTORY_BUCKETS)
+
+        # Windowed, so every number in a table row describes the same span as
+        # the sparkline next to it. All-time totals go in the header instead.
+        tally = self.journal.tally(since=since)
+        lifetime = self.journal.tally()
 
         rows, waiting = [], 0
         for agent in agents:
             if agent.pane_id == self.self_pane:
                 continue
             counts = tally.get(agent.pane_id, {})
-            paused = counts.get("PAUSE", 0) + counts.get("SKIP", 0)
+            # SKIP is the retired outcome that lumped real decisions in with
+            # herdr's false positives. Those rows cannot be told apart now,
+            # so they are not claimed as pauses; they age out of the window.
+            paused = counts.get("PAUSE", 0)
             note = ""
             if agent.status == "blocked":
                 # Blocked alone does not mean the human is needed: most of
@@ -144,6 +153,9 @@ class Dashboard:
                 rows=rows, recent=list(reversed(recent)),
                 waiting=waiting, error=error, dry_run=self.dry_run,
                 history=history,
+                lifetime_accepted=sum(
+                    c.get("ACCEPT", 0) for c in lifetime.values()
+                ),
             )
 
     def run(self) -> None:
@@ -207,7 +219,7 @@ def draw(win, snap: Snapshot, colour: dict[str, int]) -> None:
     title = "⚡ nodder" + ("  (dry run)" if snap.dry_run else "")
     _put(win, 0, 0, title, colour["head"])
     summary = (f"{len(snap.rows)} agents  ·  "
-               f"{sum(r.accepted for r in snap.rows)} yes  ·  "
+               f"{snap.lifetime_accepted} yes all-time  ·  "
                f"{snap.waiting} need you")
     _put(win, 0, max(len(title) + 2, width - len(summary) - 1), summary,
          colour["dim"])
@@ -219,10 +231,14 @@ def draw(win, snap: Snapshot, colour: dict[str, int]) -> None:
 
     row = _chart(win, snap, colour, row, width, height)
 
+    # The window is stated once, over the whole block: every number in a row
+    # covers the same span as the sparkline beside it.
+    _put(win, row, 0, f"PER PANE  ·  last {WINDOW_MINUTES} min", colour["dim"])
+    row += 1
     _put(win, row, 0,
          f"{'WHERE':<22}{'STATE':<10}{'YES':>6}{'PAUSED':>8}", colour["dim"])
     if width > _TREND_AT + 8:
-        _put(win, row, _TREND_AT, f"LAST {WINDOW_MINUTES}m", colour["dim"])
+        _put(win, row, _TREND_AT, "ACTIVITY", colour["dim"])
     row += 1
 
     # Leave room for the recent panel, its heading, and the key line.
@@ -271,7 +287,7 @@ def _chart(win, snap: Snapshot, colour: dict[str, int],
     chart_width = width - 2
     # Everything the chart must not eat into: table rows, the recent panel,
     # their headings, the axis and the key line.
-    reserved = row + len(snap.rows) + RECENT + 7
+    reserved = row + len(snap.rows) + RECENT + 8
     chart_height = min(CHART_MAX_HEIGHT, height - reserved)
     if chart_width < CHART_MIN_WIDTH or chart_height < CHART_MIN_HEIGHT:
         return row + 1

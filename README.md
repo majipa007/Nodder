@@ -11,7 +11,7 @@ you.
 ```
 $ nodder run
 
-⚡ nodder                                  3 agents  ·  59 yes  ·  1 need you
+⚡ nodder                        3 agents  ·  312 yes all-time  ·  1 need you
 ACCEPTED  last 60 min                                              peak 14
  ⠀⠀⠀⣀⣀⡀⠀⠀⠀⠀⠀⣠⣴⣶⣶⣆⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⣠⣶⣿⣷⣦⣀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀
  ⠀⢀⣴⣿⣿⣷⣦⣤⣀⣤⣶⣿⣿⣿⣿⣿⣧⡀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⠀⢀⣰⣿⣿⣿⣿⣿⣿⣤⣀⣀⣀⣤⣶⣶⣦⣀⠀⠀⠀⠀⠀⠀⠀⢀⣠⣤⣀⡀
@@ -19,9 +19,10 @@ ACCEPTED  last 60 min                                              peak 14
  ⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣶⣤⣠⣤⣴⣶⣦⣤⠀⠀⣠⣶⣿⣿⣷⣶⣶⣾⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣿⣦⡀⠀⢀⣼⣿⣿⣿⣿⣿⣿
  └ 60m ago ───────────────────────────────────────────────────────── now┘
 
-WHERE                 STATE        YES  PAUSED            LAST 60m
+PER PANE  ·  last 60 min
+WHERE                 STATE        YES  PAUSED            ACTIVITY
   sluice/p2           blocked        4       1            ·············▃▁·▁ NEEDS YOU
-▸ autoAccept/p1       working       43       5            ▁·▄▆▃▅▇▄▂·▃█▆▄▂·▂▃
+▸ autoAccept/p1       working       43       0            ▁·▄▆▃▅▇▄▂·▃█▆▄▂·▂▃
   sluice/p4           idle          12       0            ··▂▁··▁▂▁··▂▁··▁▂▁
 
 RECENT (last 10)
@@ -36,6 +37,9 @@ RECENT (last 10)
 The chart is braille — eight addressable dots per character cell, so it has
 four times the vertical resolution of a block-character chart. It grows into
 whatever space the table and the recent list don't need.
+
+Every number in a table row covers the **last 60 minutes**, the same span as
+the sparkline beside it. The all-time total sits in the header.
 
 Panes are named by workspace and pane number, `▸` marks the one you're focused
 on, and `YES` / `PAUSED` are that pane's running totals. Blocked panes sort to
@@ -247,7 +251,7 @@ across every pane, without relaunching anything.
 ## Development
 
 ```bash
-make test     # 170 tests, standard library unittest
+make test     # 172 tests, standard library unittest
 make run      # run from the source tree
 make clean
 ```
