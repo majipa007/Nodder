@@ -1,0 +1,35 @@
+
+
+● Live data. Note w17 has 7 panes across 6 tabs — that's your "7 tabs". And w16:p1 (this very session) is reporting blocked right now. Let me see what that actually looks like.
+
+  Ran 2 shell commands
+
+● --source detection returns raw plain text — no ANSI, no JSON wrapper. And explain --json exposes herdr's entire rule engine. One critical false-positive already: Claude Code's
+  input box renders a bare ❯, so I can't just grep for that glyph. I need a real approval prompt. Rather than burn your credits triggering one, let me read herdr's own detection
+  rules.
+
+  Ran 1 shell command
+
+● explain --file accepts a path — that's a test harness. Let me find the cached rule definitions on disk.
+
+  Searched for 1 pattern, listed 2 directories, ran 1 shell command
+
+● Found herdr's actual detection rules for Claude.
+
+  Searched for 2 patterns, ran 1 shell command
+
+● Manifest gives me everything: options render as ❯ 1. Yes (numbered) or ❯ Yes (unnumbered), and ^\s*❯ alone is the input box — confirming the false positive. Let me set up the
+  project and capture fixtures.
+
+  Scaffold project, capture real negative fixture, init git · 3m 11s
+  ⎿  $ mkdir -p claude_auto_accept tests/fixtures && herdr agent read w16:p1 --source detection --lines 40 > tests/fixtures/real_working_not_a_prompt.txt 2>&1 && wc -l
+     tests/fixtures/real_working_not_a_prompt.txt && git init -q 2>&1 && echo "git ok"
+
+✻ Levitating… (2m 11s · ↓ 7.8k tokens)
+  ⎿  Tip: Use /btw to ask a quick side question without interrupting Claude's current work
+                                                                                                                                                                   ● high · /effort
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+❯
+─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+   O5 1M |  42% · 13m |  5% · 6d5h |  108k/1m
+  ⏵⏵ accept edits on (shift+tab to cycle) · ← for agents

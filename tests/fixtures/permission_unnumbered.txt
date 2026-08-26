@@ -1,0 +1,13 @@
+● Let me update the configuration file.
+
+────────────────────────────────────────────────────────────────────────────
+ Edit file
+
+   src/config.ts
+
+ Do you want to proceed?
+ ❯ Yes
+   Yes, and don't ask again this session
+   No, and tell Claude what to do differently (esc)
+
+ esc to cancel · enter to confirm

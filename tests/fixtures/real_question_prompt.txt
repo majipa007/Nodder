@@ -1,0 +1,25 @@
+
+  Ran 1 shell command
+
+● Done — /tmp/aa_probe_marker_26082026 created (no output, as expected from touch).
+
+✻ Churned for 5s
+
+❯ Use the AskUserQuestion tool right now to ask me whether I prefer tabs or spaces. Do
+  not do anything else.
+─────────────────────────────────────────────────────────────────────────────────────────
+ ☐ Indentation
+
+Do you prefer tabs or spaces for indentation?
+
+❯ 1. Spaces
+     Indent with space characters (most common default; width set per-language, e.g. 2 or
+     4).
+  2. Tabs
+     Indent with tab characters, letting each reader's editor control the displayed
+     width.
+  3. Type something.
+─────────────────────────────────────────────────────────────────────────────────────────
+  4. Chat about this
+
+Enter to select · ↑/↓ to navigate · Esc to cancel

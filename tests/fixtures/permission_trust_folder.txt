@@ -1,0 +1,12 @@
+────────────────────────────────────────────────────────────────────────────
+ Do you trust the files in this folder?
+
+   /home/toji/Documents/Projects/untrusted
+
+ Claude Code may read, execute or modify files in this folder.
+
+ Do you want to proceed?
+ ❯ 1. Yes, I trust this folder
+   2. No, and tell Claude what to do differently (esc)
+
+ esc to cancel · enter to confirm

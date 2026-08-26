@@ -1,0 +1,12 @@
+● I need to know how you want to handle the migration before continuing.
+
+────────────────────────────────────────────────────────────────────────────
+ Which migration strategy should I use?
+
+ ❯ 1. Run migrations in a transaction and roll back on failure
+   2. Run migrations one at a time, stopping at the first failure
+   3. Generate the SQL only and let me apply it manually
+
+ Do you want to proceed?
+
+ ↑/↓ to navigate · esc to cancel · enter to select

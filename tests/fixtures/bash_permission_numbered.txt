@@ -1,0 +1,14 @@
+● I'll list the files in the project directory.
+
+────────────────────────────────────────────────────────────────────────────
+ Bash command
+
+   ls -la /home/toji/Documents/Projects/autoAccept
+   List files in the project directory
+
+ Do you want to proceed?
+ ❯ 1. Yes
+   2. Yes, and don't ask again for ls commands in /home/toji/Documents
+   3. No, and tell Claude what to do differently (esc)
+
+ tab to amend · ctrl+e to explain · esc to cancel · enter to confirm

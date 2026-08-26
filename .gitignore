@@ -1,0 +1,6 @@
+__pycache__/
+*.py[cod]
+.venv/
+
+# Local Claude Code permission grants — personal to each machine
+.claude/
