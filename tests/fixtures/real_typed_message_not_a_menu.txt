@@ -1,0 +1,35 @@
+
+✻ Churned for 6m 34s
+
+❯ okay what is this SKIP thing?
+  when doe sthis happen?
+
+● SKIP means nodder looked at a blocked agent and decided not to press Enter. It's the
+  safety net. There are exactly two reasons, and they're very different — let me show you
+  both from your own database.
+
+  Ran 1 shell command
+
+● Both kinds are in your data. The second one is the interesting case — let me find out why
+  your pane keeps reporting blocked with no menu.
+
+  Ran 1 shell command
+
+● Right now it reads working, so I need to catch the transition. But I can test the
+  hypothesis directly against herdr's rules.
+
+  Testing whether transcript text triggers herdr's loose rule
+  ⎿  $ SP=/tmp/claude-1000/-home-toji-Documents-Projects-autoAccept/6ff074b7-763b-4f8a-b54b
+     -68bd8a37016e/scratchpad
+     herdr agent read w16:p1 --source detection --lines 40 > "$SP/p1.txt" 2>&1
+     echo "=== trigger phrases present in this pane's buffer? ==="
+     grep -ci 'do you want to' "$SP/p1.txt" | sed 's/^/ "…
+
+✶ Deliberating… (54s · ↓ 2.3k tokens)
+  ⎿  Tip: Use /btw to ask a quick side question without interrupting Claude's current work
+                                                                         ● high · /effort
+───────────────────────────────────────────────────────────────────────────────────────────
+❯
+───────────────────────────────────────────────────────────────────────────────────────────
+   O5 1M |  3% · 4h12m |  7% · 5d23h |  291k/1m
+  ⏵⏵ accept edits on (shift+tab to cycle) · ← for agents

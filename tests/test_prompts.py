@@ -75,6 +75,8 @@ class ParseOptionsTest(unittest.TestCase):
             "Do you want to proceed?\n"
             "  1. Continue without changes\n"
             "  2. No\n"
+            "\n esc to cancel · enter to confirm\n"
+            "\n esc to cancel · enter to confirm\n"
         )
         self.assertEqual(
             [o.label for o in parse_options(snapshot)],
@@ -92,6 +94,7 @@ class ParseOptionsTest(unittest.TestCase):
             "Do you want to proceed?\n"
             "  1. Continue without changes\n"
             "  2. No\n"
+            "\n esc to cancel · enter to confirm\n"
         )
         self.assertEqual(selected_option(snapshot), "Continue without changes")
         self.assertEqual(classify(snapshot).action, Action.SKIP)
@@ -111,6 +114,7 @@ class ParseOptionsTest(unittest.TestCase):
             "Do you want to proceed?\n"
             " ❯ Yes\n"
             "   No, and tell Claude what to do differently (esc)\n"
+            "\n esc to cancel · enter to confirm\n"
         )
         self.assertEqual(
             [o.label for o in parse_options(snapshot)],
@@ -124,6 +128,7 @@ class ParseOptionsTest(unittest.TestCase):
             "Do you want to proceed?\n"
             " ❯ Yes\n"
             "   No\n"
+            "\n esc to cancel · enter to confirm\n"
         )
         self.assertEqual([o.label for o in parse_options(snapshot)], ["Yes", "No"])
 
@@ -138,6 +143,7 @@ class ParseOptionsTest(unittest.TestCase):
             "Do you want to proceed?\n"
             " ❯ No, and tell Claude what to do differently (esc)\n"
             "   Yes\n"
+            "\n esc to cancel · enter to confirm\n"
         )
         decision = classify(snapshot)
         self.assertEqual(decision.action, Action.SKIP)
@@ -157,6 +163,7 @@ class SelectedOptionTest(unittest.TestCase):
             "Do you want to proceed?\n"
             "  1. Yes\n"
             "  2. No, and tell Claude what to do differently (esc)\n"
+            "\n esc to cancel · enter to confirm\n"
         )
         self.assertEqual(selected_option(snapshot), "Yes")
 
@@ -197,27 +204,27 @@ class ClassifyTest(unittest.TestCase):
         self.assertIsNone(decision.label)
 
     def test_yes_match_is_case_insensitive_and_ignores_surrounding_space(self):
-        snapshot = "Do you want to proceed?\n ❯ 1.   yes, run it \n   2. No\n"
+        snapshot = "Do you want to proceed?\n ❯ 1.   yes, run it \n   2. No\n esc to cancel · enter to confirm\n"
         self.assertEqual(classify(snapshot).action, Action.ACCEPT)
 
     def test_a_no_selected_option_is_skipped(self):
-        snapshot = "Do you want to proceed?\n   1. Yes\n ❯ 2. No\n"
+        snapshot = "Do you want to proceed?\n   1. Yes\n ❯ 2. No\n esc to cancel · enter to confirm\n"
         decision = classify(snapshot)
         self.assertEqual(decision.action, Action.SKIP)
         self.assertEqual(decision.label, "No")
 
     def test_word_beginning_with_yes_is_not_an_affirmative(self):
-        snapshot = "Do you want to proceed?\n ❯ 1. Yesterday's backup\n   2. No\n"
+        snapshot = "Do you want to proceed?\n ❯ 1. Yesterday's backup\n   2. No\n esc to cancel · enter to confirm\n"
         self.assertEqual(classify(snapshot).action, Action.SKIP)
 
     def test_hyphenated_words_starting_with_yes_are_not_affirmative(self):
         for label in ("Yes-man refactor", "Yes-and pattern for the wrapper"):
-            snapshot = f"Do you want to proceed?\n ❯ 1. {label}\n   2. No\n"
+            snapshot = f"Do you want to proceed?\n ❯ 1. {label}\n   2. No\n esc to cancel · enter to confirm\n"
             self.assertEqual(classify(snapshot).action, Action.SKIP, label)
 
     def test_yes_followed_by_punctuation_is_affirmative(self):
         for label in ("Yes", "Yes, run it", "Yes: proceed"):
-            snapshot = f"Do you want to proceed?\n ❯ 1. {label}\n   2. No\n"
+            snapshot = f"Do you want to proceed?\n ❯ 1. {label}\n   2. No\n esc to cancel · enter to confirm\n"
             self.assertEqual(classify(snapshot).action, Action.ACCEPT, label)
 
     def test_every_decision_carries_a_reason(self):

@@ -32,10 +32,22 @@ _RULE = re.compile(r"^\s*[─-╿=_-]{3,}\s*$")
 # boundary, which would make "Yes-man refactor" affirmative.
 _AFFIRMATIVE = re.compile(r"^yes(?![\w'’-])", re.IGNORECASE)
 
-# A menu has alternatives. Requiring two Options is what stops Claude Code's
-# input box -- a lone "❯" line, possibly with text the user has typed after
-# it -- from being read as a one-Option menu and accepted.
+# A menu has alternatives. Requiring two Options is a start, but not enough on
+# its own: a two-line message typed into the input box also begins with "❯"
+# and also has a second line under it.
 _MINIMUM_OPTIONS = 2
+
+# What actually separates a menu from anything else on screen is the
+# affordance line Claude Code renders beneath every one of them --
+# "Esc to cancel · Tab to amend", "Enter to select · ↑/↓ to navigate".
+# herdr's own detection rules key on the same strings.
+#
+# Without this, a message the user is part-way through typing parses as a
+# menu, and one beginning with "Yes" would be submitted on their behalf.
+_AFFORDANCE = re.compile(
+    r"esc to cancel|enter to confirm|enter to select|to navigate",
+    re.IGNORECASE,
+)
 
 
 class Action(enum.Enum):
@@ -80,6 +92,8 @@ def parse_options(snapshot: str) -> list[Option]:
     Returns an empty list when the snapshot holds no menu, which includes the
     common case of an agent Blocked on something that is not a menu at all.
     """
+    if not _AFFORDANCE.search(snapshot):
+        return []
     lines = snapshot.splitlines()
     blocks = [
         block

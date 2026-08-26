@@ -65,6 +65,40 @@ class RealQuestionPromptTest(unittest.TestCase):
         self.assertEqual(numbers, [1, 2, 3, 4])
 
 
+class RealTypedMessageTest(unittest.TestCase):
+    """A capture of a pane where the user had typed a two-line message.
+
+    herdr reported this pane Blocked repeatedly during the session it was
+    taken from: its low-priority fallback rule matches "do you want to" plus a
+    "❯" anywhere in the buffer, and the transcript contained both. The message
+    sitting in the input box then parsed as a two-option unnumbered menu, and
+    one beginning with "Yes" would have been submitted on the user's behalf.
+
+    This particular capture replays as `working` rather than `blocked`,
+    because it caught a spinner that outranks that fallback rule. What it
+    preserves is the input-box shape that fooled the parser, which is what
+    these tests are about.
+    """
+
+    def setUp(self):
+        self.snapshot = fixture("real_typed_message_not_a_menu.txt")
+
+    def test_a_typed_message_is_not_a_menu(self):
+        self.assertEqual(parse_options(self.snapshot), [])
+
+    def test_it_is_skipped_for_want_of_a_menu(self):
+        decision = classify(self.snapshot)
+        self.assertEqual(decision.action, Action.SKIP)
+        self.assertIsNone(decision.label)
+
+    def test_it_would_still_be_skipped_if_the_message_began_with_yes(self):
+        # The guard must not depend on the text happening not to say "Yes".
+        hostile = self.snapshot.replace(
+            "❯ okay what is this SKIP thing?", "❯ Yes please do the thing"
+        )
+        self.assertEqual(classify(hostile).action, Action.SKIP)
+
+
 class RealWorkingOutputTest(unittest.TestCase):
     def test_a_busy_agent_offers_nothing_to_accept(self):
         decision = classify(fixture("real_working_not_a_prompt.txt"))

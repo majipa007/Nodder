@@ -9,9 +9,9 @@ from nodder.herdr import Agent, HerdrError, Wait
 from nodder.journal import Journal
 from nodder.prompts import Action, prompt_signature
 
-ACCEPTABLE = "Do you want to proceed?\n ❯ 1. Yes\n   2. No\n"
-OTHER_PROMPT = "Do you want to proceed?\n ❯ 1. Yes, run it\n   2. No\n"
-QUESTION = "Which strategy?\n ❯ 1. Roll back on failure\n   2. Stop at first failure\n"
+ACCEPTABLE = "Do you want to proceed?\n ❯ 1. Yes\n   2. No\n esc to cancel · enter to confirm\n"
+OTHER_PROMPT = "Do you want to proceed?\n ❯ 1. Yes, run it\n   2. No\n esc to cancel · enter to confirm\n"
+QUESTION = "Which strategy?\n ❯ 1. Roll back on failure\n   2. Stop at first failure\n esc to cancel · enter to confirm\n"
 NO_MENU = "● Working on it…\n"
 
 
@@ -197,7 +197,7 @@ class DuplicateSuppressionTest(unittest.TestCase):
         self.assertIsNone(signature)
 
     def test_signature_distinguishes_prompts_by_selected_option(self):
-        moved = "Do you want to proceed?\n   1. Yes\n ❯ 2. No\n"
+        moved = "Do you want to proceed?\n   1. Yes\n ❯ 2. No\n esc to cancel · enter to confirm\n"
         self.assertNotEqual(prompt_signature(ACCEPTABLE), prompt_signature(moved))
 
 

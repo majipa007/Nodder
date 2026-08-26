@@ -26,6 +26,10 @@ EXPECTED = {
     "real_bash_permission.txt": "blocked",
     "real_question_prompt.txt": "blocked",
     "real_working_not_a_prompt.txt": "working",
+    # Captured while the user was mid-message. herdr calls this one
+    # working -- the spinner outranks its fallback rule -- but the input
+    # box in it is what the parser used to mistake for a menu.
+    "real_typed_message_not_a_menu.txt": "working",
 }
 
 
