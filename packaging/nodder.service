@@ -1,6 +1,6 @@
 [Unit]
 Description=nodder — answer coding agents' approval prompts in herdr
-Documentation=https://github.com/your-org/nodder
+Documentation=https://github.com/majipa007/Nodder
 # herdr is reached over its socket, so nodder can start before it and will
 # simply report discovery failures until the server appears.
 After=default.target

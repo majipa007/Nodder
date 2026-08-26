@@ -29,8 +29,8 @@ dependencies = []
 nodder = "nodder.cli:main"
 
 [project.urls]
-Homepage = "https://github.com/your-org/nodder"
-Issues = "https://github.com/your-org/nodder/issues"
+Homepage = "https://github.com/majipa007/Nodder"
+Issues = "https://github.com/majipa007/Nodder/issues"
 
 [tool.setuptools]
 packages = ["nodder"]

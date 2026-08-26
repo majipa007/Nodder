@@ -25,7 +25,7 @@ $ nodder --verbose
 ## Install
 
 ```bash
-git clone <repo-url> nodder
+git clone https://github.com/majipa007/Nodder.git nodder
 cd nodder
 make install
 ```
