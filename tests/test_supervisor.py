@@ -115,6 +115,30 @@ class SupervisorTest(unittest.TestCase):
         sup.stop.set()
         thread.join(timeout=5)
 
+    def test_an_agent_that_comes_back_is_watched_again(self):
+        # Claude exiting and restarting in the same pane is the ordinary case
+        # after a crash or a /quit. The daemon must pick it up again rather
+        # than leaving that pane unwatched for the rest of the session.
+        sup = self.supervisor(FakeClient())
+        sup._spawn("w1:p1")
+        first = sup._watchers["w1:p1"]
+
+        sup._retire(targets=set())          # agent went away
+        first.thread.join(timeout=5)
+        sup._reap()
+        self.assertEqual(sup._watchers, {})
+
+        sup._spawn("w1:p1")                 # agent came back
+        self.assertIsNot(sup._watchers["w1:p1"], first)
+        self.assertFalse(sup._watchers["w1:p1"].retired.is_set())
+
+    def test_a_retired_watcher_does_not_block_its_replacement_forever(self):
+        # A retired watcher still parked in a blocking wait keeps its slot in
+        # `_watchers`, which stops a replacement being spawned. The block wait
+        # is what bounds that window, so it must stay short.
+        from claude_auto_accept.daemon import BLOCK_WAIT_MS
+        self.assertLessEqual(BLOCK_WAIT_MS, 15_000)
+
     def test_the_daemons_own_pane_is_never_watched(self):
         client = FakeClient([claude("w1:p1"), claude("w1:p2")])
         sup = self.supervisor(client, self_pane="w1:p1")

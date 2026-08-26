@@ -20,16 +20,19 @@ class FakeClient:
 
     UNBLOCKED_STATES = ("idle", "working", "done", "unknown")
 
-    def __init__(self, snapshot=ACCEPTABLE, blocked=True):
+    def __init__(self, snapshot=ACCEPTABLE, blocked=True, clears=True):
         self.snapshot = snapshot
         self.blocked = blocked
+        # Whether the Prompt goes away once it has been answered. False
+        # models a Prompt that Enter did not dismiss.
+        self.clears = clears
         self.calls: list[tuple] = []
 
     def wait_for(self, target, states, timeout_ms):
         self.calls.append(("wait", target, tuple(states)))
         if states == ("blocked",):
             return Wait.REACHED if self.blocked else Wait.TIMEOUT
-        return Wait.REACHED
+        return Wait.REACHED if self.clears else Wait.TIMEOUT
 
     def read_detection(self, target, lines=40):
         self.calls.append(("read", target))
@@ -46,16 +49,14 @@ class WatchCycleTest(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        self.journal = Journal(pathlib.Path(tmp.name) / "log")
+        self.journal = Journal(pathlib.Path(tmp.name) / "d.db", legacy_log=None)
 
     def cycle(self, client, dry_run=False, last=None):
         return watch_cycle("w16:p1", client, self.journal, dry_run=dry_run,
                            last_signature=last)
 
     def lines(self):
-        if not self.journal.path.exists():
-            return []
-        return self.journal.path.read_text().strip().splitlines()
+        return self.journal.query()
 
     def test_affirmative_option_is_accepted_with_enter(self):
         client = FakeClient(ACCEPTABLE)
@@ -110,38 +111,38 @@ class DuplicateSuppressionTest(unittest.TestCase):
     def setUp(self):
         tmp = tempfile.TemporaryDirectory()
         self.addCleanup(tmp.cleanup)
-        self.journal = Journal(pathlib.Path(tmp.name) / "log")
+        self.journal = Journal(pathlib.Path(tmp.name) / "d.db", legacy_log=None)
 
     def lines(self):
-        if not self.journal.path.exists():
-            return []
-        return self.journal.path.read_text().strip().splitlines()
+        return self.journal.query()
 
     def cycle(self, client, last=None, dry_run=False):
         return watch_cycle("w16:p1", client, self.journal, dry_run=dry_run,
                            last_signature=last)
 
     def test_the_same_prompt_is_not_pressed_twice(self):
-        client = FakeClient(ACCEPTABLE)
+        # Still on screen after Enter, so it must not be pressed again.
+        client = FakeClient(ACCEPTABLE, clears=False)
         _, signature = self.cycle(client)
         self.cycle(client, last=signature)
         self.assertEqual(len(client.kinds("enter")), 1)
 
     def test_the_same_prompt_is_not_journalled_twice(self):
-        client = FakeClient(ACCEPTABLE)
+        client = FakeClient(ACCEPTABLE, clears=False)
         _, signature = self.cycle(client)
         self.cycle(client, last=signature)
         self.assertEqual(len(self.lines()), 1)
 
     def test_an_unanswered_skip_is_recorded_once_however_long_it_waits(self):
-        client = FakeClient(QUESTION)
+        # A Skip is never pressed, so the Prompt stays up until a human acts.
+        client = FakeClient(QUESTION, clears=False)
         _, signature = self.cycle(client)
         for _ in range(5):
             _, signature = self.cycle(client, last=signature)
         self.assertEqual(len(self.lines()), 1)
 
     def test_dry_run_does_not_re_record_a_prompt_it_never_clears(self):
-        client = FakeClient(ACCEPTABLE)
+        client = FakeClient(ACCEPTABLE, clears=False)
         _, signature = self.cycle(client, dry_run=True)
         for _ in range(3):
             _, signature = self.cycle(client, last=signature, dry_run=True)
@@ -156,10 +157,41 @@ class DuplicateSuppressionTest(unittest.TestCase):
         self.assertEqual(decision.label, "Yes, run it")
         self.assertEqual(len(self.lines()), 2)
 
-    def test_an_identical_prompt_after_the_agent_unblocks_is_acted_on_again(self):
-        # Claude asking to run the same command twice is two decisions, not a
-        # duplicate. The signature is cleared whenever the agent is not
-        # Blocked, so only a continuously-showing Prompt is suppressed.
+    def test_an_identical_prompt_that_arrives_after_the_last_one_cleared(self):
+        # The regression that made the daemon go silent: Claude asking to run
+        # the same command twice is two decisions, not a duplicate. Suppression
+        # must only apply while a Prompt is still on screen.
+        client = FakeClient(ACCEPTABLE)
+        signature = None
+        for _ in range(5):
+            _, signature = self.cycle(client, last=signature)
+        self.assertEqual(len(client.kinds("enter")), 5)
+        self.assertEqual(len(self.lines()), 5)
+
+    def test_the_signature_is_forgotten_once_the_prompt_clears(self):
+        client = FakeClient(ACCEPTABLE)
+        _, signature = self.cycle(client)
+        self.assertIsNone(
+            signature,
+            "a Prompt that cleared must not suppress the next one",
+        )
+
+    def test_the_signature_is_kept_while_the_prompt_is_still_on_screen(self):
+        client = FakeClient(ACCEPTABLE, clears=False)
+        _, signature = self.cycle(client)
+        self.assertIsNotNone(signature)
+
+    def test_a_prompt_that_never_clears_is_pressed_only_once(self):
+        # The case the guard was added for: Enter did not dismiss it, so do
+        # not sit there re-pressing and re-recording.
+        client = FakeClient(ACCEPTABLE, clears=False)
+        signature = None
+        for _ in range(5):
+            _, signature = self.cycle(client, last=signature)
+        self.assertEqual(len(client.kinds("enter")), 1)
+        self.assertEqual(len(self.lines()), 1)
+
+    def test_an_unblocked_agent_clears_the_signature(self):
         client = FakeClient(ACCEPTABLE, blocked=False)
         _, signature = self.cycle(client)
         self.assertIsNone(signature)
@@ -199,7 +231,8 @@ class WatchCycleErrorTest(unittest.TestCase):
         self.addCleanup(tmp.cleanup)
         with self.assertRaises(HerdrError):
             watch_cycle(
-                "w16:p1", Broken(), Journal(pathlib.Path(tmp.name) / "log"),
+                "w16:p1", Broken(),
+                Journal(pathlib.Path(tmp.name) / "d.db", legacy_log=None),
                 dry_run=False,
             )
 

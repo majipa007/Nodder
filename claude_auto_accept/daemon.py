@@ -16,7 +16,7 @@ import threading
 from . import herdr
 from .herdr import HerdrError, Wait
 from .journal import Journal
-from .prompts import Action, Decision, classify, prompt_signature
+from .prompts import Action, Decision, classify, parse_options, prompt_signature
 
 log = logging.getLogger("claude_auto_accept")
 
@@ -24,9 +24,13 @@ log = logging.getLogger("claude_auto_accept")
 #: Claude Code's UI; other kinds render their menus differently.
 CLAUDE = "claude"
 
-#: How long a watcher parks waiting for a Prompt before looping. Bounded so a
-#: watcher notices a stop request and a vanished pane in reasonable time.
-BLOCK_WAIT_MS = 60_000
+#: How long a watcher parks waiting for a Prompt before looping.
+#:
+#: This bounds how long the daemon stays blind after Claude restarts in a pane
+#: it was already watching: the old watcher is retired but cannot be replaced
+#: until it wakes from this wait and exits, because a target that still has an
+#: entry in `_watchers` is not re-spawned. Keep it short.
+BLOCK_WAIT_MS = 15_000
 
 #: How long to wait for an answered Prompt to clear. On a Skip this expires
 #: repeatedly while the Prompt waits for the user, which is intended.
@@ -74,22 +78,40 @@ def watch_cycle(
     signature = prompt_signature(snapshot)
 
     if signature is not None and signature == last_signature:
-        # The same unanswered Prompt. `herdr agent wait` is level-triggered,
-        # so it keeps reporting Blocked until a human answers; acting again
-        # would re-press Enter and fill the journal with duplicates.
-        client.wait_for(target, client.UNBLOCKED_STATES, SETTLE_WAIT_MS)
-        return None, signature
+        # The same unanswered Prompt, still on screen. `herdr agent wait` is
+        # level-triggered, so it keeps reporting Blocked until a human
+        # answers; acting again would re-press Enter and fill the journal
+        # with duplicates.
+        return None, _remember(client, target, signature)
 
     decision = classify(snapshot)
 
     if decision.action is Action.ACCEPT and not dry_run:
         client.send_enter(target)
 
-    journal.record(target, decision)
+    # The whole menu is recorded, not just the Option that was chosen: a Skip
+    # is only readable after the fact if you can see what it declined.
+    journal.record(
+        target, decision, signature=signature, options=parse_options(snapshot)
+    )
     log.info("%s %s %s", target, decision.action.name, decision.label)
 
-    client.wait_for(target, client.UNBLOCKED_STATES, SETTLE_WAIT_MS)
-    return decision, signature
+    return decision, _remember(client, target, signature)
+
+
+def _remember(client, target: str, signature: str) -> str | None:
+    """Wait for the Prompt to clear, and say whether to keep suppressing it.
+
+    A signature suppresses only a Prompt that is *still on screen*. Once the
+    agent leaves Blocked the Prompt is gone, and the next one -- even an
+    identical-looking one, because Claude re-runs commands -- is a new
+    decision that must be acted on.
+
+    Forgetting this is what made the daemon accept one Prompt and then go
+    silent for every later Prompt of the same shape.
+    """
+    cleared = client.wait_for(target, client.UNBLOCKED_STATES, SETTLE_WAIT_MS)
+    return None if cleared is Wait.REACHED else signature
 
 
 class _Watcher:
