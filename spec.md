@@ -1,4 +1,4 @@
-# Claude Auto Accept — Technical Spec
+# nodder — Technical Spec
 
 _Last revised: 26/08/2026_
 
@@ -8,7 +8,7 @@ Terminology in this document is defined in [CONTEXT.md](./CONTEXT.md).
 
 ## 1. Overview
 
-**Claude Auto Accept** is a Python 3 daemon that watches every Agent in a
+**nodder** is a Python 3 daemon that watches every Agent in a
 [Herdr](https://herdr.dev) session and answers Approval Prompts on the user's
 behalf — including in Panes the user is not currently looking at.
 
@@ -57,7 +57,7 @@ herdr session
      └── w1:p3  codex    ─┘
              │
              ▼
-     claude-auto-accept (daemon)
+         nodder (daemon)
              │
    ┌─────────┴─────────┐
    │                   │
@@ -199,7 +199,7 @@ are also retired by the discovery loop when their agent leaves
 Every decision appends one line to:
 
 ```text
-~/.local/state/claude_auto_accept/log
+~/.local/state/nodder/log
 ```
 
 Format:

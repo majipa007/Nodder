@@ -8,9 +8,9 @@ agent has gone, and stops cleanly.
 import threading
 import unittest
 
-from claude_auto_accept.daemon import Supervisor
-from claude_auto_accept.herdr import Agent, HerdrError, Wait
-from claude_auto_accept.journal import Journal
+from nodder.daemon import Supervisor
+from nodder.herdr import Agent, HerdrError, Wait
+from nodder.journal import Journal
 
 
 class FakeClient:
@@ -136,7 +136,7 @@ class SupervisorTest(unittest.TestCase):
         # A retired watcher still parked in a blocking wait keeps its slot in
         # `_watchers`, which stops a replacement being spawned. The block wait
         # is what bounds that window, so it must stay short.
-        from claude_auto_accept.daemon import BLOCK_WAIT_MS
+        from nodder.daemon import BLOCK_WAIT_MS
         self.assertLessEqual(BLOCK_WAIT_MS, 15_000)
 
     def test_the_daemons_own_pane_is_never_watched(self):

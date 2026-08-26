@@ -8,7 +8,7 @@ classifies.
 import pathlib
 import unittest
 
-from claude_auto_accept.prompts import (
+from nodder.prompts import (
     Action,
     classify,
     parse_options,

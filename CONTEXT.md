@@ -1,4 +1,4 @@
-# Claude Auto Accept
+# nodder
 
 A watcher that answers Claude Code's routine permission prompts on the user's
 behalf, across every agent in a Herdr session, including agents the user is not

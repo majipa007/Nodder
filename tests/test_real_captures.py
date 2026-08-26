@@ -9,7 +9,7 @@ rendering, these are the tests that should fail first.
 import pathlib
 import unittest
 
-from claude_auto_accept.prompts import Action, classify, parse_options
+from nodder.prompts import Action, classify, parse_options
 
 FIXTURES = pathlib.Path(__file__).parent / "fixtures"
 

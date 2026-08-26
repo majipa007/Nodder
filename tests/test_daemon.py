@@ -4,10 +4,10 @@ import pathlib
 import tempfile
 import unittest
 
-from claude_auto_accept.daemon import selectable_targets, watch_cycle
-from claude_auto_accept.herdr import Agent, HerdrError, Wait
-from claude_auto_accept.journal import Journal
-from claude_auto_accept.prompts import Action, prompt_signature
+from nodder.daemon import selectable_targets, watch_cycle
+from nodder.herdr import Agent, HerdrError, Wait
+from nodder.journal import Journal
+from nodder.prompts import Action, prompt_signature
 
 ACCEPTABLE = "Do you want to proceed?\n ❯ 1. Yes\n   2. No\n"
 OTHER_PROMPT = "Do you want to proceed?\n ❯ 1. Yes, run it\n   2. No\n"

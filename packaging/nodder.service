@@ -1,0 +1,22 @@
+[Unit]
+Description=nodder — answer coding agents' approval prompts in herdr
+Documentation=https://github.com/your-org/nodder
+# herdr is reached over its socket, so nodder can start before it and will
+# simply report discovery failures until the server appears.
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=@BINDIR@/nodder --verbose
+Restart=on-failure
+RestartSec=5
+
+# nodder drives the herdr CLI and writes one SQLite file. It needs nothing else.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=%h/.local/state/nodder
+
+[Install]
+WantedBy=default.target

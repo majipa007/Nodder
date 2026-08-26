@@ -10,7 +10,7 @@ import subprocess
 import unittest
 from unittest import mock
 
-from claude_auto_accept import herdr
+from nodder import herdr
 
 AGENT_LIST = {
     "id": "cli:agent:list",

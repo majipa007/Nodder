@@ -23,7 +23,7 @@ from dataclasses import dataclass
 
 from .prompts import Decision, Option
 
-STATE_DIR = pathlib.Path.home() / ".local" / "state" / "claude_auto_accept"
+STATE_DIR = pathlib.Path.home() / ".local" / "state" / "nodder"
 DEFAULT_PATH = STATE_DIR / "decisions.db"
 
 #: The plain-text log this database replaced. Imported once, then left alone.

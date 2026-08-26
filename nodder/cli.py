@@ -13,14 +13,16 @@ from .daemon import Supervisor, selectable_targets, watch_cycle
 from .herdr import HerdrError
 from .journal import DEFAULT_PATH, Journal
 
-BANNER = "⚡ Claude Auto Accept: ON"
+BANNER = "⚡ nodder: ON"
 
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        prog="claude-auto-accept",
-        description="Answer Claude Code's approval prompts across every "
-                    "agent in a herdr session.",
+        prog="nodder",
+        description="Answer Claude Code's approval prompts across every agent "
+                    "in a herdr session, including panes you are not watching.",
+        epilog="Every option beginning with \"Yes\" is accepted, including ones "
+               "that spend money or grant trust. Run --dry-run first.",
     )
     parser.add_argument(
         "--dry-run", action="store_true",

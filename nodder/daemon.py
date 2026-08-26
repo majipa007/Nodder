@@ -18,7 +18,7 @@ from .herdr import HerdrError, Wait
 from .journal import Journal
 from .prompts import Action, Decision, classify, parse_options, prompt_signature
 
-log = logging.getLogger("claude_auto_accept")
+log = logging.getLogger("nodder")
 
 #: Agent kind this tool understands. `prompts.classify` is written against
 #: Claude Code's UI; other kinds render their menus differently.

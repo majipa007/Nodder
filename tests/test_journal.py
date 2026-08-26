@@ -11,8 +11,8 @@ import sqlite3
 import tempfile
 import unittest
 
-from claude_auto_accept.journal import Journal, format_line, import_legacy_log
-from claude_auto_accept.prompts import Action, Decision, Option
+from nodder.journal import Journal, format_line, import_legacy_log
+from nodder.prompts import Action, Decision, Option
 
 AT = datetime.datetime(2026, 8, 26, 14, 32, 7)
 LATER = datetime.datetime(2026, 8, 26, 18, 5, 0)

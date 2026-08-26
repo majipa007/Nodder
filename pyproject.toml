@@ -1,0 +1,36 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "nodder"
+version = "0.1.0"
+description = "Answers coding agents' approval prompts across every pane in a herdr session"
+readme = "README.md"
+requires-python = ">=3.10"
+license = { file = "LICENSE" }
+keywords = [
+    "claude-code", "claude", "herdr", "terminal", "tui",
+    "automation", "permissions", "auto-accept", "coding-agent",
+]
+classifiers = [
+    "Environment :: Console",
+    "Intended Audience :: Developers",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Terminals",
+    "Topic :: Utilities",
+]
+# Standard library only, on purpose: it makes the zipapp in `make build` a
+# single self-contained file, and keeps install to a copy.
+dependencies = []
+
+[project.scripts]
+nodder = "nodder.cli:main"
+
+[project.urls]
+Homepage = "https://github.com/your-org/nodder"
+Issues = "https://github.com/your-org/nodder/issues"
+
+[tool.setuptools]
+packages = ["nodder"]
