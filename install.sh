@@ -44,7 +44,7 @@ rm -rf build/pkg
 mkdir -p build/pkg
 cp -r nodder build/pkg/
 "$PYTHON" -m zipapp build/pkg \
-    --main nodder.cli:main \
+    --main nodder.cli:run \
     --python "/usr/bin/env python3" \
     --output build/nodder \
     --compress
