@@ -36,7 +36,7 @@ $(TARGET): $(wildcard nodder/*.py)
 	@mkdir -p $(BUILD)/pkg
 	@cp -r nodder $(BUILD)/pkg/
 	@$(PYTHON) -m zipapp $(BUILD)/pkg \
-	  --main nodder.cli:main \
+	  --main nodder.cli:run \
 	  --python "/usr/bin/env python3" \
 	  --output $(TARGET) \
 	  --compress

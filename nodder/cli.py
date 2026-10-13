@@ -91,6 +91,15 @@ def _self_pane() -> str | None:
     return os.environ.get("HERDR_PANE_ID")
 
 
+def run() -> None:
+    """Entry point for the built executable.
+
+    zipapp calls its entry point and discards the result, so `main` alone
+    exited 0 even when it failed.
+    """
+    sys.exit(main())
+
+
 def main(argv: list[str] | None = None) -> int:
     args = build_parser().parse_args(argv)
     logging.basicConfig(
