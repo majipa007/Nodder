@@ -1,11 +1,16 @@
 """Watch every Claude agent in a herdr session and answer its Approval Prompts.
 
 Discovery is polled, because herdr has no "an agent appeared" event. Each agent
-then gets a thread parked in a blocking `herdr agent wait --until blocked`.
+then gets a thread that reads its screen every second.
 
-That wait is *level*-triggered, not edge-triggered: an unanswered Prompt keeps
-reporting Blocked, so each watcher also carries the signature of the Prompt it
-last handled and does nothing while that Prompt is still on screen.
+The screen is read whatever herdr says. Waiting for herdr's `blocked` missed
+Prompts: it can call an agent `working` while a Prompt is up, and nothing then
+looks at that Prompt until herdr changes its mind. Only idle and done agents
+are skipped -- a picker the human opened there (/model, /resume) is drawn just
+like a menu, and is theirs to answer.
+
+Every look sees an unanswered Prompt again, so each watcher carries the one it
+last acted on and leaves it alone while it is still on screen.
 
 Three outcomes, and the difference between them is the point of the tool:
 
@@ -18,9 +23,11 @@ from __future__ import annotations
 
 import logging
 import threading
+import time
+from dataclasses import dataclass
 
 from . import herdr
-from .herdr import HerdrError, Wait
+from .herdr import HerdrError
 from .journal import Journal
 from .prompts import Action, Decision, classify, parse_options, prompt_signature
 
@@ -30,17 +37,16 @@ log = logging.getLogger("nodder")
 #: Claude Code's UI; other kinds render their menus differently.
 CLAUDE = "claude"
 
-#: How long a watcher parks waiting for a Prompt before looping.
-#:
-#: This bounds how long the daemon stays blind after Claude restarts in a pane
-#: it was already watching: the old watcher is retired but cannot be replaced
-#: until it wakes from this wait and exits, because a target that still has an
-#: entry in `_watchers` is not re-spawned. Keep it short.
-BLOCK_WAIT_MS = 15_000
+#: Seconds between looks at each watched agent's screen.
+SCAN_INTERVAL = 1.0
 
-#: How long to wait for an answered Prompt to clear. On a Pause this
-#: expires repeatedly while the Prompt waits for the user, as intended.
-SETTLE_WAIT_MS = 30_000
+#: herdr states whose screens are read. Not idle or done: see the module notes.
+SCANNED_STATES = ("blocked", "working")
+
+#: Seconds an accepted Prompt may stay on screen before Enter is pressed
+#: again. Well above any redraw lag, so a slow screen is not taken for a lost
+#: Enter.
+REPRESS_AFTER = 10.0
 
 #: Seconds between `herdr agent list` polls for appearing/leaving agents.
 DISCOVERY_INTERVAL = 2.0
@@ -72,7 +78,7 @@ def pending_decisions(client, self_pane: str | None = None) -> list[tuple]:
     for agent in client.list_agents():
         if agent.kind != CLAUDE or agent.pane_id == self_pane:
             continue
-        if agent.status != "blocked":
+        if agent.status not in SCANNED_STATES:
             continue
         try:
             snapshot = client.read_detection(agent.pane_id)
@@ -84,43 +90,56 @@ def pending_decisions(client, self_pane: str | None = None) -> list[tuple]:
     return waiting
 
 
+@dataclass(frozen=True)
+class Seen:
+    """The Prompt a watcher last acted on, and when."""
+
+    signature: str
+    action: Action
+    at: float
+
+
 def watch_cycle(
     target: str,
     client,
     journal: Journal,
     dry_run: bool,
-    last_signature: str | None = None,
-) -> tuple[Decision | None, str | None]:
-    """Wait for one Prompt on `target`, decide about it, and record it.
+    last: Seen | None = None,
+    now=time.monotonic,
+) -> tuple[Decision | None, Seen | None]:
+    """Look at `target` once, and decide about any new Prompt on screen.
 
-    Returns the decision and the signature of the Prompt that produced it, to
-    be passed back in on the next call. Either may be None: the wait can
-    expire with no Prompt, and a Prompt already handled is left alone.
+    Returns the decision, or None when there was nothing new to decide, and
+    what to pass back in as `last` on the next look.
 
     Raises HerdrError if herdr fails; the caller decides whether that is fatal.
     """
-    if client.wait_for(target, ("blocked",), BLOCK_WAIT_MS) is not Wait.REACHED:
-        # Not Blocked, so any Prompt we were suppressing has gone.
-        return None, None
-
     snapshot = client.read_detection(target)
     signature = prompt_signature(snapshot)
+    if signature is None:
+        # No menu, so whatever was last acted on has gone. The next Prompt --
+        # even an identical one, because Claude re-runs commands -- is a new
+        # decision.
+        return None, None
 
-    if signature is not None and signature == last_signature:
-        # The same unanswered Prompt, still on screen. `herdr agent wait` is
-        # level-triggered, so it keeps reporting Blocked until a human
-        # answers; acting again would re-press Enter and fill the journal
-        # with duplicates.
-        return None, _remember(client, target, signature)
+    at = now()
+    if last is not None and last.signature == signature:
+        # Still on screen. A Pause waits for the human however long that
+        # takes. A Yes still up REPRESS_AFTER after Enter means the Enter did
+        # not land, or an identical Prompt took its place: press again.
+        # ponytail: a UI frozen for longer than REPRESS_AFTER gets a second,
+        # unread Enter. Raise REPRESS_AFTER if that is ever seen.
+        enter_lost = (last.action is Action.ACCEPT and not dry_run
+                      and at - last.at >= REPRESS_AFTER)
+        if not enter_lost:
+            return None, last
 
     decision = classify(snapshot)
+    seen = Seen(signature, decision.action, at)
 
     if decision.action is Action.IGNORE:
-        # Not a menu, so there is no decision here to make or to record.
-        # herdr's fallback rule fires on ordinary transcripts; recording those
-        # would bury the Pauses that actually need the human.
         log.debug("%s ignored (%s)", target, decision.reason)
-        return None, _remember(client, target, signature)
+        return None, seen
 
     if decision.action is Action.ACCEPT and not dry_run:
         client.send_enter(target)
@@ -136,22 +155,7 @@ def watch_cycle(
     else:
         log.info("%s %-6s %s", target, decision.action.name, decision.label)
 
-    return decision, _remember(client, target, signature)
-
-
-def _remember(client, target: str, signature: str) -> str | None:
-    """Wait for the Prompt to clear, and say whether to keep suppressing it.
-
-    A signature suppresses only a Prompt that is *still on screen*. Once the
-    agent leaves Blocked the Prompt is gone, and the next one -- even an
-    identical-looking one, because Claude re-runs commands -- is a new
-    decision that must be acted on.
-
-    Forgetting this is what made the daemon accept one Prompt and then go
-    silent for every later Prompt of the same shape.
-    """
-    cleared = client.wait_for(target, client.UNBLOCKED_STATES, SETTLE_WAIT_MS)
-    return None if cleared is Wait.REACHED else signature
+    return decision, seen
 
 
 class _Watcher:
@@ -176,22 +180,25 @@ class Supervisor:
         dry_run: bool = False,
         self_pane: str | None = None,
         discovery_interval: float = DISCOVERY_INTERVAL,
+        scan_interval: float = SCAN_INTERVAL,
     ) -> None:
         self.client = client
         self.journal = journal or Journal()
         self.dry_run = dry_run
         self.self_pane = self_pane
         self.discovery_interval = discovery_interval
+        self.scan_interval = scan_interval
         self.stop = threading.Event()
         self._watchers: dict[str, _Watcher] = {}
+        # Each agent's herdr state as of the last discovery. Replaced whole,
+        # never mutated, so watchers can read it without a lock.
+        self._statuses: dict[str, str] = {}
 
     def run(self) -> None:
         """Poll for agents until stopped, keeping watchers in step."""
         while not self.stop.is_set():
             try:
-                targets = selectable_targets(
-                    self.client.list_agents(), self.self_pane
-                )
+                agents = self.client.list_agents()
             except HerdrError as exc:
                 # Keep existing watchers; a momentary discovery failure is not
                 # evidence that every agent has gone.
@@ -199,6 +206,8 @@ class Supervisor:
                 self.stop.wait(self.discovery_interval)
                 continue
 
+            self._statuses = {agent.pane_id: agent.status for agent in agents}
+            targets = selectable_targets(agents, self.self_pane)
             self._retire(targets)
             self._reap()
             for target in targets - self._watchers.keys():
@@ -223,8 +232,7 @@ class Supervisor:
     def _retire(self, targets: set[str]) -> None:
         """Ask watchers whose agent has left to finish.
 
-        They may be parked in a blocking wait, so they stop at the top of
-        their next loop rather than immediately.
+        One part-way through reading its screen finishes that read first.
         """
         for target, watcher in self._watchers.items():
             if target not in targets and not watcher.retired.is_set():
@@ -238,15 +246,17 @@ class Supervisor:
 
     def _watch(self, watcher: "_Watcher") -> None:
         """Thread body: answer Prompts on one agent until it goes away."""
-        signature: str | None = None
+        last: Seen | None = None
         while not self.stop.is_set() and not watcher.retired.is_set():
-            try:
-                _, signature = watch_cycle(
-                    watcher.target, self.client, self.journal, self.dry_run,
-                    last_signature=signature,
-                )
-            except HerdrError as exc:
-                # Usually the pane closed while we were parked on it. End the
-                # thread; discovery re-adds the agent if it is still there.
-                log.info("stopped watching %s: %s", watcher.target, exc)
-                return
+            if self._statuses.get(watcher.target) in SCANNED_STATES:
+                try:
+                    _, last = watch_cycle(
+                        watcher.target, self.client, self.journal, self.dry_run,
+                        last=last,
+                    )
+                except HerdrError as exc:
+                    # Usually the pane closed. End the thread; discovery
+                    # re-adds the agent if it is still there.
+                    log.info("stopped watching %s: %s", watcher.target, exc)
+                    return
+            watcher.retired.wait(self.scan_interval)

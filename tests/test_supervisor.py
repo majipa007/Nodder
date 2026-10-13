@@ -9,17 +9,17 @@ import threading
 import unittest
 
 from nodder.daemon import Supervisor
-from nodder.herdr import Agent, HerdrError, Wait
+from nodder.herdr import Agent, HerdrError
 from nodder.journal import Journal
 
 
 class FakeClient:
-    UNBLOCKED_STATES = ("idle", "working", "done", "unknown")
-
     def __init__(self, agents=(), fail=False):
         self.agents = list(agents)
         self.fail = fail
         self.listed = threading.Event()
+        self.read: set[str] = set()
+        self.first_read = threading.Event()
 
     def list_agents(self):
         self.listed.set()
@@ -27,14 +27,16 @@ class FakeClient:
             raise HerdrError("no server")
         return self.agents
 
-    # Watchers park here; TIMEOUT means "no prompt appeared", so threads loop
-    # without doing anything and exit as soon as they are asked to.
-    def wait_for(self, target, states, timeout_ms):
-        return Wait.TIMEOUT
+    # No menu on screen, so watchers loop without doing anything and exit as
+    # soon as they are asked to.
+    def read_detection(self, target, lines=40):
+        self.read.add(target)
+        self.first_read.set()
+        return "● Working on it…\n"
 
 
-def claude(pane_id):
-    return Agent(pane_id=pane_id, kind="claude", status="idle")
+def claude(pane_id, status="idle"):
+    return Agent(pane_id=pane_id, kind="claude", status=status)
 
 
 class SupervisorTest(unittest.TestCase):
@@ -43,6 +45,7 @@ class SupervisorTest(unittest.TestCase):
             client=client,
             journal=Journal("/dev/null"),
             discovery_interval=0.01,
+            scan_interval=0.01,
             **kwargs,
         )
         self.addCleanup(sup.stop.set)
@@ -132,12 +135,18 @@ class SupervisorTest(unittest.TestCase):
         self.assertIsNot(sup._watchers["w1:p1"], first)
         self.assertFalse(sup._watchers["w1:p1"].retired.is_set())
 
-    def test_a_retired_watcher_does_not_block_its_replacement_forever(self):
-        # A retired watcher still parked in a blocking wait keeps its slot in
-        # `_watchers`, which stops a replacement being spawned. The block wait
-        # is what bounds that window, so it must stay short.
-        from nodder.daemon import BLOCK_WAIT_MS
-        self.assertLessEqual(BLOCK_WAIT_MS, 15_000)
+    def test_working_agents_are_scanned_and_idle_ones_are_not(self):
+        # herdr can call an agent working while a Prompt is on screen, so
+        # waiting for blocked missed it. An idle pane is left alone: a picker
+        # the human opened there (/model, /resume) is drawn like a menu.
+        client = FakeClient([claude("w1:p1", "working"), claude("w1:p2", "idle")])
+        sup = self.supervisor(client)
+        thread = self.running(sup, client)
+        self.assertTrue(client.first_read.wait(timeout=5))
+        sup.stop.wait(0.1)                  # ten scans' worth
+        sup.stop.set()
+        thread.join(timeout=5)
+        self.assertEqual(client.read, {"w1:p1"})
 
     def test_the_daemons_own_pane_is_never_watched(self):
         client = FakeClient([claude("w1:p1"), claude("w1:p2")])

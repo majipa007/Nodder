@@ -37,13 +37,13 @@ _AFFIRMATIVE = re.compile(r"^yes(?![\w'’-])", re.IGNORECASE)
 # and also has a second line under it.
 _MINIMUM_OPTIONS = 2
 
-# What actually separates a menu from anything else on screen is the
-# affordance line Claude Code renders beneath every one of them --
-# "Esc to cancel · Tab to amend", "Enter to select · ↑/↓ to navigate".
-# herdr's own detection rules key on the same strings.
+# The affordance line Claude Code renders beneath most menus -- "Esc to
+# cancel · Tab to amend", "Enter to select · ↑/↓ to navigate". herdr's own
+# detection rules key on the same strings. Not every Prompt has one (Fetch
+# does not); `_is_prompt` says what else will do.
 #
-# Without this, a message the user is part-way through typing parses as a
-# menu, and one beginning with "Yes" would be submitted on their behalf.
+# Without these checks, a message the user is part-way through typing parses
+# as a menu, and one beginning with "Yes" would be submitted on their behalf.
 _AFFORDANCE = re.compile(
     r"esc to cancel|enter to confirm|enter to select|to navigate",
     re.IGNORECASE,
@@ -87,11 +87,17 @@ class Decision:
     reason: str
 
 
+# Claude Code draws a solid rule across the top of every Prompt's panel. The
+# dashed rules inside the panel are not it, which is why `_RULE` cannot be used.
+_PANEL_TOP = re.compile(r"^\s*─{3,}\s*$")
+
+
 @dataclass(frozen=True)
 class _Block:
-    """A candidate menu and where its last line sits on screen."""
+    """A candidate menu and where its first and last lines sit on screen."""
 
     options: list[Option]
+    top: int
     bottom: int
 
 
@@ -106,23 +112,40 @@ def parse_options(snapshot: str) -> list[Option]:
     Returns an empty list when the snapshot holds no menu, which includes the
     common case of an agent Blocked on something that is not a menu at all.
     """
-    lines = snapshot.splitlines()
+    block = _menu(snapshot.splitlines())
+    return block.options if block else []
+
+
+def _menu(lines: list[str]) -> _Block | None:
+    """The candidate block lowest on screen that really is a menu."""
     blocks = [
         block
         for block in (_numbered_block(lines), _unnumbered_block(lines))
         if block
         and len(block.options) >= _MINIMUM_OPTIONS
-        and _affordance_below(lines, block.bottom)
+        and _is_prompt(lines, block)
     ]
-    if not blocks:
-        return []
-    return max(blocks, key=lambda block: block.bottom).options
+    return max(blocks, key=lambda block: block.bottom, default=None)
 
 
-def _affordance_below(lines: list[str], bottom: int) -> bool:
-    """Whether Claude Code's menu footer follows the block at `bottom`."""
-    window = lines[bottom + 1:bottom + 1 + _AFFORDANCE_WINDOW]
-    return any(_AFFORDANCE.search(line) for line in window)
+def _is_prompt(lines: list[str], block: _Block) -> bool:
+    """Whether `block` is a Prompt rather than a list that merely looks like one.
+
+    A Prompt replaces the input box, so nothing ruled is drawn beneath it. A
+    menu with the input box's rules under it is a transcript quoting one --
+    which matters because working panes are scanned, not just blocked.
+
+    Most Prompts close with a footer ("Esc to cancel · Tab to amend"). Some,
+    like Fetch, end at their last Option; those must at least show the cursor
+    and be the last thing on screen.
+    """
+    below = lines[block.bottom + 1:]
+    if any(_RULE.match(line) for line in below):
+        return False
+    if any(_AFFORDANCE.search(line) for line in below[:_AFFORDANCE_WINDOW]):
+        return True
+    selected = any(option.selected for option in block.options)
+    return selected and not any(line.strip() for line in below)
 
 
 def _numbered_block(lines: list[str]) -> _Block | None:
@@ -143,9 +166,9 @@ def _numbered_block(lines: list[str]) -> _Block | None:
         return None
 
     options: list[Option] = []
-    bottom = matches[-1][0]
+    top = bottom = matches[-1][0]
     wanted = int(matches[-1][1]["number"])
-    for _, match in reversed(matches):
+    for index, match in reversed(matches):
         if wanted < 1:
             break
         if int(match["number"]) != wanted:
@@ -157,8 +180,9 @@ def _numbered_block(lines: list[str]) -> _Block | None:
                 selected=match["cursor"] is not None,
             )
         )
+        top = index
         wanted -= 1
-    return _Block(list(reversed(options)), bottom)
+    return _Block(list(reversed(options)), top, bottom)
 
 
 def _unnumbered_block(lines: list[str]) -> _Block | None:
@@ -182,7 +206,7 @@ def _unnumbered_block(lines: list[str]) -> _Block | None:
                 break
             options.append(Option(label=following.strip()))
             bottom = offset
-        return _Block(options, bottom)
+        return _Block(options, index, bottom)
     return None
 
 
@@ -216,15 +240,29 @@ def prompt_signature(snapshot: str) -> str | None:
     reporting Blocked. Comparing signatures between cycles is what stops the
     same Prompt being decided, pressed and journalled over and over while it
     waits for a human. Returns None when there is no menu.
+
+    The whole panel is hashed, not just its Options. A workflow's subagents
+    queue their Prompts in one pane, and their Options are often identical --
+    "Yes", "No" -- so only the panel ("28 of 33", the tool and its argument)
+    tells one from the next. Hashing the Options alone made every Prompt in a
+    queue look like the one just answered, and the queue stalled.
     """
-    options = parse_options(snapshot)
-    if not options:
+    lines = snapshot.splitlines()
+    block = _menu(lines)
+    if block is None:
         return None
-    joined = "\x1f".join(
-        f"{'>' if option.selected else ' '}{option.number}:{option.label}"
-        for option in options
+    # Searched from the first Option up, because a question prompt can draw a
+    # rule between its own Options. No rule in view means the panel is taller
+    # than the snapshot, so everything above the menu is panel.
+    # ponytail: the "N of M" counter is hashed too, so a Pause is recorded
+    # again if more Prompts queue behind it. Dropping the counter would let
+    # identical queued Prompts collide again, so keep it.
+    top = next(
+        (i for i in range(block.top - 1, -1, -1) if _PANEL_TOP.match(lines[i])),
+        0,
     )
-    return hashlib.sha256(joined.encode("utf-8")).hexdigest()[:16]
+    panel = "\n".join(line.strip() for line in lines[top:block.bottom + 1])
+    return hashlib.sha256(panel.encode("utf-8")).hexdigest()[:16]
 
 
 def classify(snapshot: str) -> Decision:
