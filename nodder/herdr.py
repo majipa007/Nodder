@@ -7,22 +7,11 @@ arrive as JSON on stderr with exit status 1.
 
 from __future__ import annotations
 
-import enum
 import json
 import subprocess
 from dataclasses import dataclass
 
 HERDR = "herdr"
-
-#: States that mean an agent is no longer showing a Prompt.
-UNBLOCKED_STATES = ("idle", "working", "done", "unknown")
-
-
-class Wait(enum.Enum):
-    """Outcome of `wait_for`."""
-
-    REACHED = "reached"
-    TIMEOUT = "timeout"
 
 
 class HerdrError(RuntimeError):
@@ -125,37 +114,6 @@ def read_detection(target: str, lines: int = 40) -> str:
             f"{' '.join(argv)} exited {proc.returncode}: {proc.stderr.strip()}"
         )
     return proc.stdout
-
-
-def _error_code(stderr: str) -> str | None:
-    """The `error.code` from a herdr failure, if it answered with JSON."""
-    try:
-        return json.loads(stderr).get("error", {}).get("code")
-    except (json.JSONDecodeError, AttributeError):
-        return None
-
-
-def wait_for(target: str, states: tuple[str, ...], timeout_ms: int) -> Wait:
-    """Block until an agent reaches one of `states`.
-
-    A timeout is ordinary -- the agent simply did not get there -- and is
-    reported rather than raised. Every other failure raises: herdr answers
-    `agent_not_found` for a closed pane in milliseconds, and treating that as
-    a timeout would spin the caller at full speed.
-    """
-    argv = [HERDR, "agent", "wait", target]
-    for state in states:
-        argv += ["--until", state]
-    argv += ["--timeout", str(timeout_ms)]
-    # Allow generous slack over herdr's own deadline before giving up on it.
-    proc = _run(argv, timeout=timeout_ms / 1000 + 30)
-    if proc.returncode == 0:
-        return Wait.REACHED
-    if _error_code(proc.stderr) == "timeout":
-        return Wait.TIMEOUT
-    raise HerdrError(
-        f"{' '.join(argv)} exited {proc.returncode}: {proc.stderr.strip()}"
-    )
 
 
 def send_enter(target: str) -> None:

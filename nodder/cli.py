@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import argparse
+import fcntl
 import logging
 import os
 import pathlib
@@ -17,9 +18,30 @@ from .daemon import (
     watch_cycle,
 )
 from .herdr import HerdrError
-from .journal import DEFAULT_PATH, Journal
+from .journal import DEFAULT_PATH, STATE_DIR, Journal
 
 BANNER = "⚡ nodder: ON"
+
+#: Held by the running daemon for as long as it runs.
+LOCK_PATH = STATE_DIR / "daemon.lock"
+
+
+def single_instance(path: pathlib.Path = LOCK_PATH):
+    """Take the daemon lock: the open file holding it, or None if it is taken.
+
+    Every daemon watches every pane, so a second one adds nothing but a second
+    Enter per Prompt -- and that Enter lands, unread, on whichever Prompt comes
+    next, which may be a decision that should have been paused. The kernel
+    drops the lock when the process exits, however it exits.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    handle = open(path, "w")
+    try:
+        fcntl.flock(handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        handle.close()
+        return None
+    return handle
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -60,7 +82,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--once", metavar="TARGET",
-        help="run a single watch cycle against one agent, then exit",
+        help="look at one agent's screen once, act on any Prompt, then exit",
     )
     return parser
 
@@ -118,10 +140,16 @@ def main(argv: list[str] | None = None) -> int:
             print(f"herdr failed: {exc}", file=sys.stderr)
             return 1
         if decision is None:
-            print("no prompt appeared", file=sys.stderr)
+            print("no prompt on screen", file=sys.stderr)
             return 1
         print(f"{decision.action.name} {decision.label!r} ({decision.reason})")
         return 0
+
+    lock = single_instance()    # held, by this reference, until main returns
+    if lock is None:
+        print("nodder is already running; one daemon watches every pane.",
+              file=sys.stderr)
+        return 1
 
     supervisor = Supervisor(
         journal=journal, dry_run=args.dry_run, self_pane=self_pane

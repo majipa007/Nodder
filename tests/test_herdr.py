@@ -91,62 +91,15 @@ class ReadDetectionTest(unittest.TestCase):
         )
 
 
-class WaitTest(unittest.TestCase):
-    def test_builds_a_repeated_until_flag_for_each_state(self):
-        with mock.patch.object(
-            herdr.subprocess, "run", return_value=completed("{}")
-        ) as run:
-            herdr.wait_for(
-                "w16:p1", states=("idle", "working", "done"), timeout_ms=5000
-            )
-        argv = run.call_args.args[0]
-        self.assertEqual(
-            argv,
-            ["herdr", "agent", "wait", "w16:p1",
-             "--until", "idle", "--until", "working", "--until", "done",
-             "--timeout", "5000"],
-        )
-
-    def test_timeout_is_an_ordinary_outcome(self):
-        # The agent simply did not reach the state. It must not crash the
-        # watcher thread.
-        stderr = '{"error":{"code":"timeout","message":"timed out"}}'
-        with mock.patch.object(
-            herdr.subprocess, "run",
-            return_value=completed(returncode=1, stderr=stderr),
-        ):
-            self.assertIs(
-                herdr.wait_for("w16:p1", states=("blocked",), timeout_ms=10),
-                herdr.Wait.TIMEOUT,
-            )
-
-    def test_reaching_the_state_is_reported(self):
-        with mock.patch.object(
-            herdr.subprocess, "run", return_value=completed("{}")
-        ):
-            self.assertIs(
-                herdr.wait_for("w16:p1", states=("blocked",), timeout_ms=10),
-                herdr.Wait.REACHED,
-            )
-
-    def test_a_vanished_pane_raises_rather_than_looking_like_a_timeout(self):
-        # herdr answers agent_not_found in milliseconds. Treating that as a
-        # timeout would spin the watcher thread at full speed.
+    def test_a_vanished_pane_raises(self):
+        # The watcher ends on this; discovery re-adds the agent if it is back.
         stderr = '{"error":{"code":"agent_not_found","message":"not found"}}'
         with mock.patch.object(
             herdr.subprocess, "run",
             return_value=completed(returncode=1, stderr=stderr),
         ):
             with self.assertRaises(herdr.HerdrError):
-                herdr.wait_for("w99:p9", states=("blocked",), timeout_ms=10)
-
-    def test_an_unparseable_error_raises(self):
-        with mock.patch.object(
-            herdr.subprocess, "run",
-            return_value=completed(returncode=1, stderr="server exploded"),
-        ):
-            with self.assertRaises(herdr.HerdrError):
-                herdr.wait_for("w16:p1", states=("blocked",), timeout_ms=10)
+                herdr.read_detection("w99:p9")
 
 
 class SendEnterTest(unittest.TestCase):

@@ -21,6 +21,8 @@ EXPECTED = {
     "permission_unnumbered.txt": "blocked",
     "permission_trust_folder.txt": "blocked",
     "question_prompt.txt": "blocked",
+    "workflow_queued_permission.txt": "blocked",
+    "fetch_permission_no_footer.txt": "blocked",
     # Verbatim captures from a live session; herdr must agree these are the
     # states they were captured in.
     "real_bash_permission.txt": "blocked",

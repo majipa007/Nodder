@@ -89,22 +89,22 @@ after the fact if you can't see what it declined.
 
 herdr already owns the terminal, recognises agents, and hands out a rendered
 plain-text snapshot of any pane. So there is no PTY here, no terminal
-emulation, no ANSI parsing — four commands and a supervisor:
+emulation, no ANSI parsing — three commands and a supervisor:
 
 ```
 herdr agent list                          discover, every 2s
-herdr agent wait <a> --until blocked      one thread per agent
-herdr agent read <a> --source detection
+herdr agent read <a> --source detection   every 1s, one thread per agent
 herdr agent send-keys <a> enter
 ```
 
-`blocked` means, in herdr's words, *"an approval **or question** UI"*. Telling
-those two apart is nodder's whole job, and the only Claude-specific code is
-[`prompts.py`](./nodder/prompts.py). herdr knows 21 agent kinds and
-`blocked`/`send-keys` are kind-agnostic, so codex support is one module.
+Every blocked or working pane is read every second; nodder doesn't wait for
+herdr to say `blocked`, because herdr can say `working` while a prompt is up.
+Telling an approval from a real question is nodder's whole job, and the only
+Claude-specific code is [`prompts.py`](./nodder/prompts.py). herdr knows 21
+agent kinds and `send-keys` is kind-agnostic, so codex support is one module.
 
-[`spec.md`](./spec.md) has the design, including the two things that cost most
-to get right: `agent wait` is level-triggered, and a dead pane is not a timeout.
+[`spec.md`](./spec.md) has the design, including why a Yes still on screen 10s
+after Enter is pressed again, and why only one daemon may run.
 
 ## Why
 
@@ -116,7 +116,7 @@ anything.
 ## Development
 
 ```bash
-make test    # 172 tests, stdlib unittest
+make test    # 174 tests, stdlib unittest
 make run
 ```
 

@@ -12,6 +12,7 @@ from nodder.prompts import (
     Action,
     classify,
     parse_options,
+    prompt_signature,
     selected_option,
 )
 
@@ -131,6 +132,35 @@ class ParseOptionsTest(unittest.TestCase):
             "\n esc to cancel · enter to confirm\n"
         )
         self.assertEqual([o.label for o in parse_options(snapshot)], ["Yes", "No"])
+
+    def test_a_menu_in_the_transcript_above_the_input_box_is_not_a_menu(self):
+        # Panes are scanned while working, not only while blocked, and a
+        # transcript can quote a whole Prompt, footer and all. A real Prompt
+        # is the last thing on screen; this one has the input box under it.
+        snapshot = (
+            "Do you want to proceed?\n"
+            " ❯ 1. Yes\n"
+            "   2. No\n"
+            "\n esc to cancel · enter to confirm\n"
+            "\n"
+            "────────────────────\n"
+            "❯ \n"
+            "────────────────────\n"
+            "  ⏵⏵ accept edits on\n"
+        )
+        self.assertEqual(parse_options(snapshot), [])
+
+    def test_a_prompt_drawn_without_a_footer_is_still_a_menu(self):
+        # Fetch prompts end at their last Option: no "Esc to cancel" line.
+        # Requiring the footer stalled a workflow on one for 13 minutes.
+        decision = classify(fixture("fetch_permission_no_footer.txt"))
+        self.assertEqual(decision.action, Action.ACCEPT)
+        self.assertEqual(decision.label, "Yes")
+
+    def test_a_numbered_list_ending_the_screen_without_a_cursor_is_not_a_menu(self):
+        # Without a footer, the cursor is what says something is selectable.
+        snapshot = "● Two ways to do it:\n  1. Yes, inline it\n  2. Extract a helper\n"
+        self.assertEqual(parse_options(snapshot), [])
 
     def test_numbered_prose_does_not_pre_empt_an_unnumbered_menu_below_it(self):
         # The numbered block is higher on screen than the real menu, so the
@@ -279,6 +309,28 @@ class ClassifyTest(unittest.TestCase):
             "real_working_not_a_prompt.txt",
         ):
             self.assertTrue(classify(fixture(name)).reason, name)
+
+
+class PromptSignatureTest(unittest.TestCase):
+    """A workflow's subagents queue their Prompts in one pane, and the Options
+    are often identical; only the panel above the menu tells them apart."""
+
+    def setUp(self):
+        self.snapshot = fixture("workflow_queued_permission.txt")
+
+    def test_the_next_prompt_in_the_queue_is_a_different_prompt(self):
+        following = self.snapshot.replace("28 of 33", "29 of 33")
+        self.assertNotEqual(
+            prompt_signature(self.snapshot), prompt_signature(following)
+        )
+
+    def test_a_different_file_with_the_same_options_is_a_different_prompt(self):
+        other = self.snapshot.replace("before.png", "after.png")
+        self.assertNotEqual(prompt_signature(self.snapshot), prompt_signature(other))
+
+    def test_the_transcript_above_the_panel_is_not_part_of_the_prompt(self):
+        moved = self.snapshot.replace("2 dynamic workflows", "1 dynamic workflow")
+        self.assertEqual(prompt_signature(self.snapshot), prompt_signature(moved))
 
 
 if __name__ == "__main__":

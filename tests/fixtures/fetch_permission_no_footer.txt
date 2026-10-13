@@ -1,0 +1,18 @@
+● Checking the docs for the single-executable flags.
+
+✻ Waiting for 2 dynamic workflows to finish
+
+────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+ Fetch · from the "boxfire-single-exe-rese…" workflow                                                                                                                                                       1 of 12
+ Claude wants to fetch content from bun.com
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ url: https://bun.com/docs/bundler/executables
+ │ prompt: Quote exactly: (1) anything about the `--asset` flag or embedding directories of files (what paths they get, how to read them); (2) the embedded file path on Windows vs Linux/macOS (e.g. `$bunfs`,
+ │ `B:/~BUN/root`); what `import.meta.url` / `import.meta.path` / `__dirname` return inside a compiled executable; (3) cross-compilation targets list (bun-windows-x64, baseline, modern) and the AVX2 note; (4)
+ │ Windows-specific flags (--windows-icon, --windows-hide-console, title, publisher) and whether they work when cross-compiling; (5) code signing on Windows / SmartScreen; (6) --no-compile-autoload-dotenv /
+ │ bunfig defaults; (7) anything about `--compile-executable-path`.
+╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌╌
+ Do you want to allow Claude to fetch this content?
+ ❯ 1. Yes
+   2. Yes, and don't ask again for bun.com
+   3. No, and tell Claude what to do differently (esc)

@@ -62,10 +62,8 @@ herdr session
    ┌─────────┴─────────┐
    │                   │
 discover            watch (one thread per Agent)
-`herdr agent list`  `herdr agent wait <a> --until blocked`
-every ~2s                   │
-                            ▼
-                    `herdr agent read <a> --source detection`
+`herdr agent list`  every 1s, if blocked or working:
+every ~2s           `herdr agent read <a> --source detection`
                             │
                             ▼
                  Is a "Yes" offered and selected?
@@ -88,7 +86,6 @@ every ~2s                   │
 | Purpose | Command |
 |---|---|
 | Discover Agents | `herdr agent list` |
-| Wait for a Prompt | `herdr agent wait <target> --until blocked [--timeout <ms>]` |
 | Inspect the Prompt | `herdr agent read <target> --source detection --lines 40` |
 | Accept | `herdr agent send-keys <target> enter` |
 
@@ -104,7 +101,9 @@ Verified against **herdr 0.8.0** and **Claude Code 2.1.241**.
 Herdr performs detection. This tool performs **classification**.
 
 `blocked` means, per Herdr's own documentation, *"Herdr recognized an approval
-**or question** UI"*. It does not distinguish the two. So on every `blocked`:
+**or question** UI"*. It does not distinguish the two, and it is not reliable
+enough to wait on: herdr can report `working` while a Prompt is on screen. So
+every second, for every Agent herdr reports as `blocked` or `working`:
 
 1. Read the detection snapshot.
 2. Extract the **Selected Option** — the entry marked with `❯` (`❯`), or
@@ -161,41 +160,63 @@ make the record useless for its one job — showing what needs the human.
 ## 7. Concurrency
 
 - One **discovery** loop polling `herdr agent list` every ~2s, to notice Agents
-  appearing and exiting.
-- One **watcher** thread per live Agent, each parked in a blocking
-  `herdr agent wait --until blocked`.
+  appearing and exiting, and to learn each one's state.
+- One **watcher** thread per live Agent, reading its screen every second while
+  herdr reports it `blocked` or `working`.
 - Watchers are reaped when their Agent leaves `herdr agent list`.
 
-Discovery is polled; acceptance is event-driven.
+Everything is polled. Nothing waits on herdr's events.
 
-### Duplicate protection is needed after all
+### Why not `herdr agent wait --until blocked`
 
-An earlier draft of this spec claimed `agent wait` was edge-triggered and that
-no duplicate protection was required. **That is wrong.** Measured against herdr
-0.8.0:
+An earlier version parked each watcher in that wait. It missed Prompts: herdr
+can call an Agent `working` while a Prompt is up (a running workflow's spinner
+outranks its Prompt rule), and nothing then read the screen until herdr
+changed its mind. Reading the screen every second cannot miss one.
 
-```bash
-$ time herdr agent wait <idle-agent> --until idle --timeout 5000
-rc=0 in 0.010s          # already idle -> returns immediately
-```
+`idle` and `done` Agents are still skipped. A picker the human opened there
+(`/model`, `/resume`) is drawn just like a menu and is theirs to answer.
+Working panes are scanned, so a menu only counts if nothing ruled is drawn
+below it. A real Prompt replaces the input box, while a transcript that quotes
+one still has the input box beneath it. Most Prompts close with a footer
+(`Esc to cancel · Tab to amend`), but some, like Fetch, have none. A menu
+without a footer counts only if it shows the `❯` cursor and is the last thing
+on screen. Requiring the footer once stalled a workflow on a Fetch Prompt for
+13 minutes.
 
-`agent wait` is **level-triggered**. An unanswered Prompt keeps reporting
-`blocked`, so a watcher that simply re-armed would re-read, re-press and
-re-journal the same Prompt every settle interval until a human answered it.
+### Duplicate protection
 
-So each watcher carries the **signature** of the last Prompt it handled — a
-hash of the Option labels and which one is selected. A cycle that sees the same
-signature does nothing. The signature is cleared whenever the agent leaves
-`blocked`, so Claude asking to run the same command twice is correctly treated
-as two decisions rather than a duplicate.
+Every look sees an unanswered Prompt again. So each watcher remembers the
+**signature** of the last Prompt it acted on: a hash of the Prompt's whole
+panel, from the solid rule above it down to the last Option. While that
+signature is on screen, nothing is done, with one exception. A Yes still up
+10s after Enter means the Enter did not land, or an identical Prompt took its
+place, so Enter is pressed again and recorded again. A Pause is never
+re-pressed or re-recorded.
 
-### Failures must be told apart from timeouts
+The signature is forgotten as soon as no menu is on screen, so Claude asking to
+run the same command twice counts as two decisions, not a duplicate.
 
-`herdr agent wait` exits non-zero for both, but the `error.code` on stderr
-distinguishes them:
+### Queued Prompts
 
-| `error.code` | Meaning | Handling |
-|---|---|---|
+A workflow's subagents queue their Prompts in one pane (`Read file · from the
+"build" workflow   28 of 33`). Answering one shows the next at once, often
+with identical Options (`Yes` / `No`). The signature hashes the whole panel,
+so `28 of 33` and `29 of 33` are different Prompts, and the queue drains at
+one Prompt per scan.
+
+### One daemon
+
+Every daemon watches every pane, so a second one only adds a second Enter per
+Prompt, and that Enter lands unread on whichever Prompt is next, possibly one
+that should have been paused. `nodder run` holds `flock` on
+`~/.local/state/nodder/daemon.lock` and refuses to start if it is taken.
+`--waiting`, `--status` and `--once` do not take it.
+
+A closed pane makes `herdr agent read` fail, which ends that watcher.
+Discovery re-adds the Agent if it comes back.
+
+---|---|---|
 | `timeout` | No Prompt appeared | Ordinary; loop again |
 | `agent_not_found` | Pane is gone — returns in ~6 ms | Raise; end the watcher |
 
@@ -292,7 +313,8 @@ With the daemon running and seven Claude Agents across a Herdr session:
   within ~1s, in focused and unfocused Panes alike.
 * Question Prompts whose Selected Option is not a "Yes" are left untouched, and
   Herdr's existing notification tells the user one is waiting.
-* Each Prompt produces exactly one log line however long it stays on screen.
+* Each Prompt produces exactly one log line however long it stays on screen,
+  except a Yes that is still up 10s after Enter, which is pressed and logged again.
 * Every Acceptance and Pause appears in the record; Ignores do not.
 * Killing the daemon returns every Pane to normal interactive behaviour with no
   residual state.
